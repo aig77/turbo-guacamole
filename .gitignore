@@ -1,0 +1,6 @@
+# From template
+.direnv
+.pre-commit-config.yaml
+
+/target
+

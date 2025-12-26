@@ -11,6 +11,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+use url::Url;
 
 const BASE_URL: &str = "tg.com";
 
@@ -19,9 +20,10 @@ async fn main() {
     let shared_state = SharedState::default();
 
     let app = Router::new()
-        // will eventually route, for now just print the value
         .route("/{key}", get(redirect))
-        .route("/shorten", post(add_url))
+        .route("/shorten", post(shorten_url))
+        .route("/keys", get(list_keys))
+        // TODO: admin keys
         .nest("/admin", admin_routes())
         .with_state(Arc::clone(&shared_state));
 
@@ -32,10 +34,12 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+// TODO: handle unwraps for app state
 type SharedState = Arc<RwLock<AppState>>;
 
 #[derive(Default)]
 struct AppState {
+    // TODO: convert database to Postgres
     db: HashMap<String, String>,
 }
 
@@ -57,39 +61,51 @@ async fn redirect(
     }
 }
 
-async fn add_url(
+// TODO: collision strategy
+async fn shorten_url(
     State(state): State<SharedState>,
     Json(payload): Json<ShortenPayload>,
-) -> Result<String, StatusCode> {
-    let key = encode(payload.url.as_str());
+) -> Result<(StatusCode, String), (StatusCode, String)> {
+    let normalized_url = normalize_url(&payload.url);
+    validate_url(&normalized_url)?;
+    let key = encode(&normalized_url);
     let shortened = shortened_url_from_key(&key);
-    state.write().unwrap().db.insert(key, payload.url);
-    Ok(shortened)
+    if !state.read().unwrap().db.contains_key(&key) {
+        state.write().unwrap().db.insert(key, normalized_url);
+        Ok((StatusCode::CREATED, shortened))
+    } else {
+        Ok((StatusCode::OK, shortened))
+    }
+}
+
+async fn list_keys(
+    State(state): State<SharedState>,
+) -> Result<Json<HashMap<String, String>>, StatusCode> {
+    let db = &state.read().unwrap().db;
+    // TODO: without cloning
+    Ok(Json(db.clone()))
 }
 
 fn admin_routes() -> Router<SharedState> {
-    async fn list_keys(State(state): State<SharedState>) -> Result<String, StatusCode> {
-        let db = &state.read().unwrap().db;
-
-        Ok(db
-            .keys()
-            .map(|key| key.to_string())
-            .collect::<Vec<String>>()
-            .join("\n"))
+    async fn delete_all_keys(State(state): State<SharedState>) -> String {
+        let count = state.write().unwrap().db.drain().count();
+        count.to_string()
     }
 
-    async fn delete_all_keys(State(state): State<SharedState>) {
-        state.write().unwrap().db.clear();
-    }
-
-    async fn remove_key(Path(key): Path<String>, State(state): State<SharedState>) {
-        state.write().unwrap().db.remove(&key);
+    async fn remove_key(
+        Path(key): Path<String>,
+        State(state): State<SharedState>,
+    ) -> Result<String, StatusCode> {
+        if let Some(value) = state.write().unwrap().db.remove(&key) {
+            Ok(value)
+        } else {
+            Err(StatusCode::NOT_FOUND)
+        }
     }
 
     Router::new()
-        .route("/keys", get(list_keys))
-        .route("/delete/keys", delete(delete_all_keys))
-        .route("/delete/keys/{key}", delete(remove_key))
+        .route("/keys", delete(delete_all_keys))
+        .route("/keys/{key}", delete(remove_key))
 }
 
 fn encode(s: &str) -> String {
@@ -101,8 +117,26 @@ fn encode(s: &str) -> String {
 }
 
 fn shortened_url_from_key(key: &str) -> String {
-    let mut shortened = String::from(BASE_URL);
+    let mut shortened = String::from("https://");
+    shortened.push_str(BASE_URL);
     shortened.push('/');
     shortened.push_str(key);
     shortened
+}
+
+fn normalize_url(url: &str) -> String {
+    url.trim().trim_end_matches('/').to_string()
+}
+
+fn validate_url(url: &str) -> Result<(), (StatusCode, String)> {
+    let parsed =
+        Url::parse(url).map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {}", e)))?;
+    if parsed.scheme() == "http" || parsed.scheme() == "https" {
+        Ok(())
+    } else {
+        Err((
+            StatusCode::BAD_REQUEST,
+            "Only http and https schemes are accepted".to_string(),
+        ))
+    }
 }

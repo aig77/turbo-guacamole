@@ -1,6 +1,7 @@
 # turbo-guacamole
 
 Building a URL Shortener to help me learn rust and axum.
+![](turbo-avocado.jpg)
 
 ## TODOs:
 - Unwrap handling

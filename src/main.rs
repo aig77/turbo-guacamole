@@ -2,6 +2,7 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
+    response::Redirect,
     routing::{delete, get, post},
 };
 use serde::Deserialize;
@@ -19,7 +20,7 @@ async fn main() {
 
     let app = Router::new()
         // will eventually route, for now just print the value
-        .route("/{key}", get(get_url))
+        .route("/{key}", get(redirect))
         .route("/shorten", post(add_url))
         .nest("/admin", admin_routes())
         .with_state(Arc::clone(&shared_state));
@@ -43,15 +44,14 @@ struct ShortenPayload {
     url: String,
 }
 
-async fn get_url(
+async fn redirect(
     Path(key): Path<String>,
     State(state): State<SharedState>,
-) -> Result<String, StatusCode> {
+) -> Result<Redirect, StatusCode> {
     let db = &state.read().unwrap().db;
 
     if let Some(value) = db.get(&key) {
-        let url = value.clone();
-        Ok(url)
+        Ok(Redirect::temporary(value))
     } else {
         Err(StatusCode::NOT_FOUND)
     }

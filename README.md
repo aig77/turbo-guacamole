@@ -1,6 +1,6 @@
 # turbo-guacamole
 
-![](turbo-avocado.jpg)
+![](.docs/turbo-avocado.jpg)
 
 ---
 Building a URL Shortener to help me learn rust and axum.

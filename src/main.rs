@@ -5,6 +5,10 @@ use axum::{
     response::Redirect,
     routing::{delete, get, post},
 };
+use axum_extra::{
+    TypedHeader,
+    headers::{Authorization, authorization::Basic},
+};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -17,13 +21,23 @@ const BASE_URL: &str = "tg.com";
 
 #[tokio::main]
 async fn main() {
-    let shared_state = SharedState::default();
+    dotenvy::dotenv().ok();
+
+    let admin_username =
+        std::env::var("ADMIN_USERNAME").expect("Environment variable ADMIN_USERNAME");
+    let admin_password =
+        std::env::var("ADMIN_PASSWORD").expect("Environment variable ADMIN_PASSWORD");
+
+    let shared_state = Arc::new(RwLock::new(AppState {
+        db: HashMap::new(),
+        admin_username,
+        admin_password,
+    }));
 
     let app = Router::new()
         .route("/{key}", get(redirect))
         .route("/shorten", post(shorten_url))
         .route("/keys", get(list_keys))
-        // TODO: admin keys
         .nest("/admin", admin_routes())
         .with_state(Arc::clone(&shared_state));
 
@@ -41,6 +55,8 @@ type SharedState = Arc<RwLock<AppState>>;
 struct AppState {
     // TODO: convert database to Postgres
     db: HashMap<String, String>,
+    admin_username: String,
+    admin_password: String,
 }
 
 #[derive(Deserialize)]
@@ -87,19 +103,48 @@ async fn list_keys(
 }
 
 fn admin_routes() -> Router<SharedState> {
-    async fn delete_all_keys(State(state): State<SharedState>) -> String {
+    async fn delete_all_keys(
+        TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
+        State(state): State<SharedState>,
+    ) -> Result<String, StatusCode> {
+        auth_request(
+            creds.username(),
+            creds.password(),
+            &state.read().unwrap().admin_username,
+            &state.read().unwrap().admin_password,
+        )?;
         let count = state.write().unwrap().db.drain().count();
-        count.to_string()
+        Ok(count.to_string())
     }
 
     async fn remove_key(
+        TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
         Path(key): Path<String>,
         State(state): State<SharedState>,
     ) -> Result<String, StatusCode> {
+        auth_request(
+            creds.username(),
+            creds.password(),
+            &state.read().unwrap().admin_username,
+            &state.read().unwrap().admin_password,
+        )?;
         if let Some(value) = state.write().unwrap().db.remove(&key) {
             Ok(value)
         } else {
             Err(StatusCode::NOT_FOUND)
+        }
+    }
+
+    fn auth_request(
+        input_username: &str,
+        input_password: &str,
+        admin_username: &str,
+        admin_password: &str,
+    ) -> Result<(), StatusCode> {
+        if input_username == admin_username && input_password == admin_password {
+            Ok(())
+        } else {
+            Err(StatusCode::UNAUTHORIZED)
         }
     }
 

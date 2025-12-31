@@ -1,6 +1,22 @@
+# Cargo
+/target
+
+# Editor files
+*.swp
+*.swo
+.idea/
+.vscode/
+.zed/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
 # From template
 .direnv
 .pre-commit-config.yaml
 
-/target
 .env
+.database/data/

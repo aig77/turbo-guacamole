@@ -11,10 +11,8 @@ use axum_extra::{
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
 const BASE_URL: &str = "tg.com";
@@ -23,19 +21,28 @@ const BASE_URL: &str = "tg.com";
 async fn main() {
     dotenvy::dotenv().ok();
 
+    let db_connection_str =
+        std::env::var("DATABASE_URL").expect("Environment variable DATABASE_URL");
+
+    // set up connection pool
+    let pool = PgPoolOptions::new()
+        .connect(&db_connection_str)
+        .await
+        .expect("can't connect to database");
+
     let admin_username =
         std::env::var("ADMIN_USERNAME").expect("Environment variable ADMIN_USERNAME");
     let admin_password =
         std::env::var("ADMIN_PASSWORD").expect("Environment variable ADMIN_PASSWORD");
 
-    let shared_state = Arc::new(RwLock::new(AppState {
-        db: HashMap::new(),
+    let shared_state = Arc::new(AppState {
+        pool,
         admin_username,
         admin_password,
-    }));
+    });
 
     let app = Router::new()
-        .route("/{key}", get(redirect))
+        .route("/{code}", get(redirect))
         .route("/shorten", post(shorten_url))
         .route("/keys", get(list_keys))
         .nest("/admin", admin_routes())
@@ -48,13 +55,9 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-// TODO: handle unwraps for app state
-type SharedState = Arc<RwLock<AppState>>;
-
-#[derive(Default)]
 struct AppState {
     // TODO: convert database to Postgres
-    db: HashMap<String, String>,
+    pool: PgPool,
     admin_username: String,
     admin_password: String,
 }
@@ -65,21 +68,25 @@ struct ShortenPayload {
 }
 
 async fn redirect(
-    Path(key): Path<String>,
-    State(state): State<SharedState>,
-) -> Result<Redirect, StatusCode> {
-    let db = &state.read().unwrap().db;
+    Path(code): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Redirect, (StatusCode, String)> {
+    let result: Result<Option<String>, _> =
+        sqlx::query_scalar("SELECT url FROM urls WHERE code = $1")
+            .bind(code)
+            .fetch_optional(&state.pool)
+            .await;
 
-    if let Some(value) = db.get(&key) {
-        Ok(Redirect::temporary(value))
-    } else {
-        Err(StatusCode::NOT_FOUND)
+    match result {
+        Ok(Some(url)) => Ok(Redirect::temporary(&url)),
+        Ok(None) => Err((StatusCode::NOT_FOUND, "no code found".to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
 
 // TODO: collision strategy
 async fn shorten_url(
-    State(state): State<SharedState>,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
     let normalized_url = normalize_url(&payload.url);
@@ -95,17 +102,17 @@ async fn shorten_url(
 }
 
 async fn list_keys(
-    State(state): State<SharedState>,
+    State(state): State<Arc<AppState>>,
 ) -> Result<Json<HashMap<String, String>>, StatusCode> {
     let db = &state.read().unwrap().db;
     // TODO: without cloning
     Ok(Json(db.clone()))
 }
 
-fn admin_routes() -> Router<SharedState> {
+fn admin_routes() -> Router<Arc<AppState>> {
     async fn delete_all_keys(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
-        State(state): State<SharedState>,
+        State(state): State<Arc<AppState>>,
     ) -> Result<String, StatusCode> {
         auth_request(
             creds.username(),
@@ -120,7 +127,7 @@ fn admin_routes() -> Router<SharedState> {
     async fn remove_key(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
         Path(key): Path<String>,
-        State(state): State<SharedState>,
+        State(state): State<Arc<AppState>>,
     ) -> Result<String, StatusCode> {
         auth_request(
             creds.username(),

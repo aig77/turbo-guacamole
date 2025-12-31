@@ -114,7 +114,7 @@ fn admin_routes() -> Router<Arc<AppState>> {
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
         State(state): State<Arc<AppState>>,
     ) -> Result<String, StatusCode> {
-        auth_request(
+        authenticate(
             creds.username(),
             creds.password(),
             &state.read().unwrap().admin_username,
@@ -129,7 +129,7 @@ fn admin_routes() -> Router<Arc<AppState>> {
         Path(key): Path<String>,
         State(state): State<Arc<AppState>>,
     ) -> Result<String, StatusCode> {
-        auth_request(
+        authenticate(
             creds.username(),
             creds.password(),
             &state.read().unwrap().admin_username,
@@ -142,7 +142,7 @@ fn admin_routes() -> Router<Arc<AppState>> {
         }
     }
 
-    fn auth_request(
+    fn authenticate(
         input_username: &str,
         input_password: &str,
         admin_username: &str,

@@ -24,16 +24,17 @@ async fn main() {
     let db_connection_str =
         std::env::var("DATABASE_URL").expect("Environment variable DATABASE_URL");
 
+    let admin_username =
+        std::env::var("ADMIN_USERNAME").expect("Environment variable ADMIN_USERNAME");
+
+    let admin_password =
+        std::env::var("ADMIN_PASSWORD").expect("Environment variable ADMIN_PASSWORD");
+
     // set up connection pool
     let pool = PgPoolOptions::new()
         .connect(&db_connection_str)
         .await
         .expect("can't connect to database");
-
-    let admin_username =
-        std::env::var("ADMIN_USERNAME").expect("Environment variable ADMIN_USERNAME");
-    let admin_password =
-        std::env::var("ADMIN_PASSWORD").expect("Environment variable ADMIN_PASSWORD");
 
     let shared_state = Arc::new(AppState {
         pool,
@@ -44,7 +45,7 @@ async fn main() {
     let app = Router::new()
         .route("/{code}", get(redirect))
         .route("/shorten", post(shorten_url))
-        .route("/keys", get(list_keys))
+        .route("/codes", get(list_codes))
         .nest("/admin", admin_routes())
         .with_state(Arc::clone(&shared_state));
 
@@ -56,7 +57,6 @@ async fn main() {
 }
 
 struct AppState {
-    // TODO: convert database to Postgres
     pool: PgPool,
     admin_username: String,
     admin_password: String,
@@ -89,56 +89,99 @@ async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
-    let normalized_url = normalize_url(&payload.url);
-    validate_url(&normalized_url)?;
-    let key = encode(&normalized_url);
-    let shortened = shortened_url_from_key(&key);
-    if !state.read().unwrap().db.contains_key(&key) {
-        state.write().unwrap().db.insert(key, normalized_url);
-        Ok((StatusCode::CREATED, shortened))
-    } else {
-        Ok((StatusCode::OK, shortened))
+    // validate
+    let parsed = Url::parse(&payload.url)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {}", e)))?;
+
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Only http and https schemes are accepted".to_string(),
+        ));
+    }
+
+    let code = encode(&payload.url);
+
+    let shortened = shortened_url_from_code(&code);
+
+    let result: Result<Option<String>, _> =
+        sqlx::query_scalar("SELECT code FROM urls WHERE code = $1")
+            .bind(&code)
+            .fetch_optional(&state.pool)
+            .await;
+
+    match result {
+        Ok(Some(_)) => Ok((StatusCode::OK, shortened)),
+        Ok(None) => {
+            sqlx::query("INSERT INTO urls (code, url) VALUES ($1, $2)")
+                .bind(&code)
+                .bind(&payload.url)
+                .execute(&state.pool)
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            Ok((StatusCode::CREATED, shortened))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
 
-async fn list_keys(
+async fn list_codes(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<HashMap<String, String>>, StatusCode> {
-    let db = &state.read().unwrap().db;
-    // TODO: without cloning
-    Ok(Json(db.clone()))
+    let urls = sqlx::query_as("SELECT code, url FROM urls")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .into_iter()
+        .collect();
+
+    Ok(Json(urls))
 }
 
 fn admin_routes() -> Router<Arc<AppState>> {
-    async fn delete_all_keys(
+    async fn delete_all_codes(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
         State(state): State<Arc<AppState>>,
     ) -> Result<String, StatusCode> {
         authenticate(
             creds.username(),
             creds.password(),
-            &state.read().unwrap().admin_username,
-            &state.read().unwrap().admin_password,
+            &state.admin_username,
+            &state.admin_password,
         )?;
-        let count = state.write().unwrap().db.drain().count();
-        Ok(count.to_string())
+
+        let result = sqlx::query("DELETE FROM urls")
+            .execute(&state.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let count = result.rows_affected();
+        Ok(format!("Deleted {} rows", count))
     }
 
-    async fn remove_key(
+    async fn remove_codes(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
-        Path(key): Path<String>,
+        Path(code): Path<String>,
         State(state): State<Arc<AppState>>,
     ) -> Result<String, StatusCode> {
         authenticate(
             creds.username(),
             creds.password(),
-            &state.read().unwrap().admin_username,
-            &state.read().unwrap().admin_password,
+            &state.admin_username,
+            &state.admin_password,
         )?;
-        if let Some(value) = state.write().unwrap().db.remove(&key) {
-            Ok(value)
-        } else {
-            Err(StatusCode::NOT_FOUND)
+
+        let result = sqlx::query_as::<_, (String, String)>(
+            "DELETE FROM urls where code = $1 RETURNING code, url",
+        )
+        .bind(&code)
+        .fetch_optional(&state.pool)
+        .await;
+
+        match result {
+            Ok(Some((code, url))) => Ok(format!("{}: {}", code, url)),
+            Ok(None) => Err(StatusCode::NOT_FOUND),
+            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         }
     }
 
@@ -156,8 +199,8 @@ fn admin_routes() -> Router<Arc<AppState>> {
     }
 
     Router::new()
-        .route("/keys", delete(delete_all_keys))
-        .route("/keys/{key}", delete(remove_key))
+        .route("/codes", delete(delete_all_codes))
+        .route("/codes/{code}", delete(remove_codes))
 }
 
 fn encode(s: &str) -> String {
@@ -168,27 +211,10 @@ fn encode(s: &str) -> String {
     base62::encode(number)
 }
 
-fn shortened_url_from_key(key: &str) -> String {
+fn shortened_url_from_code(code: &str) -> String {
     let mut shortened = String::from("https://");
     shortened.push_str(BASE_URL);
     shortened.push('/');
-    shortened.push_str(key);
+    shortened.push_str(code);
     shortened
-}
-
-fn normalize_url(url: &str) -> String {
-    url.trim().trim_end_matches('/').to_string()
-}
-
-fn validate_url(url: &str) -> Result<(), (StatusCode, String)> {
-    let parsed =
-        Url::parse(url).map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {}", e)))?;
-    if parsed.scheme() == "http" || parsed.scheme() == "https" {
-        Ok(())
-    } else {
-        Err((
-            StatusCode::BAD_REQUEST,
-            "Only http and https schemes are accepted".to_string(),
-        ))
-    }
 }

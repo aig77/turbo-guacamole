@@ -9,8 +9,9 @@ Building a URL Shortener to help me learn axum and postgres.
 - [x] Admin route protection | _added basic auth_
 - [x] Postgres Migration | _sqlx + postgres_
 - [ ] Collision strategy 
+- [ ] Tracing
 
 ## Future considerations:
-- TTL Implemenation
 - Analytics tracking
+- TTL Implemenation
 - Stronger auth option

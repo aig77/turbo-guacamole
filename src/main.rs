@@ -15,14 +15,14 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
-const BASE_URL: &str = "tg.com";
-
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
 
     let db_connection_str =
         std::env::var("DATABASE_URL").expect("Environment variable DATABASE_URL");
+
+    let base_url = std::env::var("BASE_URL").unwrap_or("127.0.0.1:3000".to_string());
 
     let admin_username =
         std::env::var("ADMIN_USERNAME").expect("Environment variable ADMIN_USERNAME");
@@ -38,6 +38,7 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         pool,
+        base_url,
         admin_username,
         admin_password,
     });
@@ -49,15 +50,16 @@ async fn main() {
         .nest("/admin", admin_routes())
         .with_state(Arc::clone(&shared_state));
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+    let listener = tokio::net::TcpListener::bind(&shared_state.base_url)
         .await
         .unwrap();
-    dbg!("listening on {}", listener.local_addr().unwrap());
+    println!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }
 
 struct AppState {
     pool: PgPool,
+    base_url: String,
     admin_username: String,
     admin_password: String,
 }
@@ -102,7 +104,7 @@ async fn shorten_url(
 
     let code = encode(&payload.url);
 
-    let shortened = shortened_url_from_code(&code);
+    let shortened = shortened_url_from_code(&code, &state.base_url);
 
     let result: Result<Option<String>, _> =
         sqlx::query_scalar("SELECT code FROM urls WHERE code = $1")
@@ -211,9 +213,8 @@ fn encode(s: &str) -> String {
     base62::encode(number)
 }
 
-fn shortened_url_from_code(code: &str) -> String {
-    let mut shortened = String::from("https://");
-    shortened.push_str(BASE_URL);
+fn shortened_url_from_code(code: &str, base_url: &str) -> String {
+    let mut shortened = String::from(base_url);
     shortened.push('/');
     shortened.push_str(code);
     shortened

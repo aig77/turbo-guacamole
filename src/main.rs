@@ -210,7 +210,7 @@ fn encode(s: &str) -> String {
     let bytes = hash.as_slice();
     let eight_bytes: [u8; 8] = bytes[..8].try_into().unwrap();
     let number = u64::from_be_bytes(eight_bytes);
-    base62::encode(number)
+    format!("{:0>8}", base62::encode(number))
 }
 
 fn shortened_url_from_code(code: &str, base_url: &str) -> String {

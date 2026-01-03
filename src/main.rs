@@ -86,7 +86,6 @@ async fn redirect(
     }
 }
 
-// TODO: collision strategy
 async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
@@ -106,14 +105,28 @@ async fn shorten_url(
 
     let shortened = shortened_url_from_code(&code, &state.base_url);
 
-    let result: Result<Option<String>, _> =
-        sqlx::query_scalar("SELECT code FROM urls WHERE code = $1")
+    // grab code and url for collision handling later
+    let result: Result<Option<(String, String)>, _> =
+        sqlx::query_as("SELECT code, url FROM urls WHERE code = $1")
             .bind(&code)
             .fetch_optional(&state.pool)
             .await;
 
     match result {
-        Ok(Some(_)) => Ok((StatusCode::OK, shortened)),
+        Ok(Some((_, url))) => {
+            // TODO: enhance collision strategy
+            // check if result url is equal to the payload (the same url has been added before)
+            // return status ok in this case
+            // otherwise, we have to handle collision strategy
+            if url == payload.url {
+                Ok((StatusCode::OK, shortened))
+            } else {
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "code collision".to_string(),
+                ))
+            }
+        }
         Ok(None) => {
             sqlx::query("INSERT INTO urls (code, url) VALUES ($1, $2)")
                 .bind(&code)
@@ -205,6 +218,7 @@ fn admin_routes() -> Router<Arc<AppState>> {
         .route("/codes/{code}", delete(remove_codes))
 }
 
+// TODO: shorten code to 5 or 6 at base and use collision to expand
 fn encode(s: &str) -> String {
     let hash = Sha256::digest(s);
     let bytes = hash.as_slice();

@@ -9,11 +9,20 @@ use axum_extra::{
     TypedHeader,
     headers::{Authorization, authorization::Basic},
 };
+use rand::Rng;
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{collections::HashMap, sync::Arc};
+use tracing::{debug, instrument};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use url::Url;
+
+const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const CODE_LEN: usize = 6;
+
+/// PostgreSQL unique constraint violation error code
+/// Reference: https://www.postgresql.org/docs/current/errcodes-appendix.html
+const PG_UNIQUE_VIOLATION: &str = "23505";
 
 #[tokio::main]
 async fn main() {
@@ -29,6 +38,14 @@ async fn main() {
 
     let admin_password =
         std::env::var("ADMIN_PASSWORD").expect("Environment variable ADMIN_PASSWORD");
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| format!("{}=debug", env!("CARGO_CRATE_NAME")).into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     // set up connection pool
     let pool = PgPoolOptions::new()
@@ -53,7 +70,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&shared_state.base_url)
         .await
         .unwrap();
-    println!("listening on {}", listener.local_addr().unwrap());
+    debug!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -64,11 +81,12 @@ struct AppState {
     admin_password: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ShortenPayload {
     url: String,
 }
 
+#[instrument(skip(state))]
 async fn redirect(
     Path(code): Path<String>,
     State(state): State<Arc<AppState>>,
@@ -82,51 +100,72 @@ async fn redirect(
     match result {
         Ok(Some(url)) => Ok(Redirect::temporary(&url)),
         Ok(None) => Err((StatusCode::NOT_FOUND, "no code found".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        Err(e) => Err(internal_error(e)),
     }
 }
 
-// TODO: collision strategy
+#[instrument(skip(state))]
 async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
-    // validate
-    let parsed = Url::parse(&payload.url)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {}", e)))?;
+    fn validate(url: &str) -> Result<(), (StatusCode, String)> {
+        let parsed = Url::parse(url)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {}", e)))?;
 
-    if parsed.scheme() != "http" && parsed.scheme() != "https" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Only http and https schemes are accepted".to_string(),
-        ));
+        if parsed.scheme() != "http" && parsed.scheme() != "https" {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Only http and https schemes are accepted".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
-    let code = encode(&payload.url);
+    fn is_collision(db_err: &dyn sqlx::error::DatabaseError) -> bool {
+        // Unique constraint violation
+        db_err.code().is_some_and(|c| c == PG_UNIQUE_VIOLATION)
+    }
 
-    let shortened = shortened_url_from_code(&code, &state.base_url);
+    validate(&payload.url)?;
 
-    let result: Result<Option<String>, _> =
-        sqlx::query_scalar("SELECT code FROM urls WHERE code = $1")
+    // grab code and url for collision handling later
+    let existing: Option<String> = sqlx::query_scalar("SELECT code FROM urls WHERE url = $1")
+        .bind(&payload.url)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?;
+
+    if let Some(code) = existing {
+        let shortened = shortened_url_from_code(&code, &state.base_url);
+        return Ok((StatusCode::OK, shortened));
+    }
+
+    loop {
+        let code = generate_random_base62_code(CODE_LEN);
+
+        let result = sqlx::query("INSERT INTO urls (code, url) VALUES ($1, $2)")
             .bind(&code)
-            .fetch_optional(&state.pool)
+            .bind(&payload.url)
+            .execute(&state.pool)
             .await;
 
-    match result {
-        Ok(Some(_)) => Ok((StatusCode::OK, shortened)),
-        Ok(None) => {
-            sqlx::query("INSERT INTO urls (code, url) VALUES ($1, $2)")
-                .bind(&code)
-                .bind(&payload.url)
-                .execute(&state.pool)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            Ok((StatusCode::CREATED, shortened))
+        match result {
+            Ok(_) => {
+                let shortened = shortened_url_from_code(&code, &state.base_url);
+                return Ok((StatusCode::CREATED, shortened));
+            }
+            Err(sqlx::Error::Database(db_err)) if is_collision(db_err.as_ref()) => {
+                tracing::debug!("Collision - retrying with new code");
+                continue;
+            }
+            Err(e) => return Err(internal_error(e)),
         }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
 
+#[instrument(skip(state))]
 async fn list_codes(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<HashMap<String, String>>, StatusCode> {
@@ -141,6 +180,7 @@ async fn list_codes(
 }
 
 fn admin_routes() -> Router<Arc<AppState>> {
+    #[instrument(skip(creds, state))]
     async fn delete_all_codes(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
         State(state): State<Arc<AppState>>,
@@ -161,6 +201,7 @@ fn admin_routes() -> Router<Arc<AppState>> {
         Ok(format!("Deleted {} rows", count))
     }
 
+    #[instrument(skip(creds, state))]
     async fn remove_codes(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
         Path(code): Path<String>,
@@ -173,15 +214,13 @@ fn admin_routes() -> Router<Arc<AppState>> {
             &state.admin_password,
         )?;
 
-        let result = sqlx::query_as::<_, (String, String)>(
-            "DELETE FROM urls where code = $1 RETURNING code, url",
-        )
-        .bind(&code)
-        .fetch_optional(&state.pool)
-        .await;
+        let result = sqlx::query_scalar("DELETE FROM urls where code = $1 RETURNING url")
+            .bind(&code)
+            .fetch_optional(&state.pool)
+            .await;
 
         match result {
-            Ok(Some((code, url))) => Ok(format!("{}: {}", code, url)),
+            Ok(Some(url)) => Ok(url),
             Ok(None) => Err(StatusCode::NOT_FOUND),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         }
@@ -205,12 +244,14 @@ fn admin_routes() -> Router<Arc<AppState>> {
         .route("/codes/{code}", delete(remove_codes))
 }
 
-fn encode(s: &str) -> String {
-    let hash = Sha256::digest(s);
-    let bytes = hash.as_slice();
-    let eight_bytes: [u8; 8] = bytes[..8].try_into().unwrap();
-    let number = u64::from_be_bytes(eight_bytes);
-    base62::encode(number)
+fn generate_random_base62_code(length: usize) -> String {
+    let mut rng = rand::rng();
+    (0..length)
+        .map(|_| {
+            let idx = rng.random_range(0..62);
+            BASE62[idx] as char
+        })
+        .collect()
 }
 
 fn shortened_url_from_code(code: &str, base_url: &str) -> String {
@@ -218,4 +259,13 @@ fn shortened_url_from_code(code: &str, base_url: &str) -> String {
     shortened.push('/');
     shortened.push_str(code);
     shortened
+}
+
+/// Utility function for mapping any error into a `500 Internal Server Error`
+/// response.
+fn internal_error<E>(err: E) -> (StatusCode, String)
+where
+    E: std::error::Error,
+{
+    (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }

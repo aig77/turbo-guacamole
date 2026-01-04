@@ -13,7 +13,7 @@ use rand::Rng;
 use serde::Deserialize;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{collections::HashMap, sync::Arc};
-use tracing::{debug, error, instrument};
+use tracing::{debug, instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use url::Url;
 

@@ -8,7 +8,7 @@ Building a URL Shortener to help me learn axum and postgres.
 ## TODOs:
 - [x] Admin route protection | _added basic auth_
 - [x] Postgres Migration | _sqlx + postgres_
-- [x] Collision strategy | _change to random code generation and handle duplication using loop_
+- [x] Collision strategy | _change to random code generation and handle collision using retries_ 
 - [ ] Tracing
 
 ## Future considerations:

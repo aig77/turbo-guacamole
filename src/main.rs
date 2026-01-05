@@ -26,6 +26,14 @@ const PG_UNIQUE_VIOLATION: &str = "23505";
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| format!("{}=debug", env!("CARGO_CRATE_NAME")).into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     dotenvy::dotenv().ok();
 
     let db_connection_str =
@@ -38,14 +46,6 @@ async fn main() {
 
     let admin_password =
         std::env::var("ADMIN_PASSWORD").expect("Environment variable ADMIN_PASSWORD");
-
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| format!("{}=debug", env!("CARGO_CRATE_NAME")).into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
 
     // set up connection pool
     let pool = PgPoolOptions::new()

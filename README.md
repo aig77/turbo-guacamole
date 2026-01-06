@@ -33,7 +33,7 @@ A simple URL Shortener in Rust.
 - [x] Logging | _tokio tracing_
 
 ## Future considerations:
-- Analytics tracking
-- TTL Implemenation
-- Stronger auth option
 - Redis Cache 
+- Analytics tracking
+- Stronger auth option
+- TTL Implemenation

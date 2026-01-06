@@ -76,7 +76,6 @@ async fn main() {
     let app = Router::new()
         .route("/{code}", get(redirect))
         .route("/shorten", post(shorten_url))
-        .route("/codes", get(list_codes))
         .nest("/admin", admin_routes())
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
         .with_state(Arc::clone(&shared_state));
@@ -212,25 +211,33 @@ async fn shorten_url(
     }
 }
 
-#[instrument(skip(state))]
-async fn list_codes(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<HashMap<String, String>>, StatusCode> {
-    let urls: HashMap<String, String> = sqlx::query_as("SELECT code, url FROM urls")
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
-            error!("Database query failed while listing codes: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .into_iter()
-        .collect();
-
-    info!("Retrieved {} URL mappings", urls.len());
-    Ok(Json(urls))
-}
-
 fn admin_routes() -> Router<Arc<AppState>> {
+    #[instrument(skip(state))]
+    async fn list_codes(
+        TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
+        State(state): State<Arc<AppState>>,
+    ) -> Result<Json<HashMap<String, String>>, StatusCode> {
+        authenticate(
+            creds.username(),
+            creds.password(),
+            &state.admin_username,
+            &state.admin_password,
+        )?;
+
+        let urls: HashMap<String, String> = sqlx::query_as("SELECT code, url FROM urls")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| {
+                error!("Database query failed while listing codes: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .into_iter()
+            .collect();
+
+        info!("Retrieved {} URL mappings", urls.len());
+        Ok(Json(urls))
+    }
+
     #[instrument(skip(creds, state))]
     async fn delete_all_codes(
         TypedHeader(Authorization(creds)): TypedHeader<Authorization<Basic>>,
@@ -306,6 +313,7 @@ fn admin_routes() -> Router<Arc<AppState>> {
     }
 
     Router::new()
+        .route("/codes", get(list_codes))
         .route("/codes", delete(delete_all_codes))
         .route("/codes/{code}", delete(remove_codes))
 }

@@ -113,6 +113,15 @@ async fn redirect(
     match result {
         Ok(Some(url)) => {
             info!("Redirect target found");
+
+            if let Err(e) = sqlx::query("INSERT INTO clicks (code) VALUES ($1)")
+                .bind(&code)
+                .execute(&state.pool)
+                .await
+            {
+                error!("Failed to record click analytics: {}", e);
+            }
+
             Ok(Redirect::temporary(&url))
         }
         Ok(None) => {

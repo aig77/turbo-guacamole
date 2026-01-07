@@ -16,6 +16,11 @@ pub async fn shorten_url(
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
     validate_url_format(&payload.url)?;
 
+    let addr = format!(
+        "{}:{}",
+        &state.config.service_host, &state.config.service_port
+    );
+
     // Check if this URL has already been shortened (duplicate detection)
     let existing = urls::find_code_by_url(&state.pool, &payload.url)
         .await
@@ -26,7 +31,7 @@ pub async fn shorten_url(
             "URL already exists, returning from existing code: {}",
             &code
         );
-        let shortened = shortened_url_from_code(&code, &state.config.service_host);
+        let shortened = shortened_url_from_code(&code, &addr);
         return Ok((StatusCode::OK, shortened));
     }
 
@@ -39,7 +44,7 @@ pub async fn shorten_url(
         match result {
             Ok(_) => {
                 info!("Short URL created with code: {}", &code);
-                let shortened = shortened_url_from_code(&code, &state.config.service_host);
+                let shortened = shortened_url_from_code(&code, &addr);
                 return Ok((StatusCode::CREATED, shortened));
             }
             Err(sqlx::Error::Database(db_err)) if is_collision(db_err.as_ref()) => {

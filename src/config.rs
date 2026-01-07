@@ -6,9 +6,9 @@ pub const CODE_LEN: usize = 6;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub database_url: String,
     pub service_host: String,
     pub service_port: String,
+    pub database_url: String,
     pub admin_username: String,
     pub admin_password: String,
 }

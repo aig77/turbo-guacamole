@@ -1,13 +1,8 @@
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::postgres::PgPool;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-/// PostgreSQL unique constraint violation error code
-/// Reference: https://www.postgresql.org/docs/current/errcodes-appendix.html
-pub const PG_UNIQUE_VIOLATION: &str = "23505";
-
 pub const CODE_LEN: usize = 6;
-pub const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -41,10 +36,6 @@ pub fn setup_tracing() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
-}
-
-pub async fn setup_database(config: &Config) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new().connect(&config.database_url).await
 }
 
 #[warn(dead_code)]

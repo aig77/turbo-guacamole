@@ -1,10 +1,11 @@
-use turbo_guacamole::{config, handlers};
+use turbo_guacamole::{config, db, handlers};
 
 use axum::{
     Router,
     routing::{get, post},
 };
-use config::{AppState, Config, setup_database, setup_tracing};
+use config::{AppState, Config, setup_tracing};
+use db::setup_database;
 use handlers::{admin::admin_routes, redirect::redirect_url, shorten::shorten_url};
 use std::sync::Arc;
 use tower::ServiceBuilder;

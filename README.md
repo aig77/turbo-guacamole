@@ -8,12 +8,12 @@ A simple URL Shortener in Rust.
 
 ## Basic Features
 - Random 6-character Base62 code generation
-- URL validation (HTTP/HTTPS only)
 - Collision handling with automatic retry
 - Duplicate URL detection
 - Basic authentication for admin routes
 - PostgreSQL persistence
 - Request logging and tracing
+- Click analytics
 
 ## Endpoints
 
@@ -31,9 +31,11 @@ A simple URL Shortener in Rust.
 - [x] Postgres Migration | _sqlx + postgres_
 - [x] Collision strategy | _change to random code generation and handle collision using retries_ 
 - [x] Logging | _tokio tracing_
+- [x] Modular Structure
+- [x] Analytics | _click table tracks redirects_
+- [ ] Analytics endpoints
+- [ ] Middleware (JWT, Rate limiting)
 
 ## Future considerations:
 - Redis Cache 
-- Analytics tracking
-- Stronger auth option
 - TTL Implemenation

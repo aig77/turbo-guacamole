@@ -1,4 +1,4 @@
-use crate::config::AppState;
+use crate::{config::AppState, db::queries::urls};
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -25,8 +25,7 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        let urls: HashMap<String, String> = sqlx::query_as("SELECT code, url FROM urls")
-            .fetch_all(&state.pool)
+        let urls: HashMap<String, String> = urls::list_all(&state.pool)
             .await
             .map_err(|e| {
                 error!("Database query failed while listing codes: {}", e);
@@ -51,13 +50,10 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        let result = sqlx::query("DELETE FROM urls")
-            .execute(&state.pool)
-            .await
-            .map_err(|e| {
-                error!("Database delete failed while removing all codes: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        let result = urls::delete_all(&state.pool).await.map_err(|e| {
+            error!("Database delete failed while removing all codes: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
         let count = result.rows_affected();
         info!("Deleted {} rows", count);
@@ -77,10 +73,7 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        let result = sqlx::query_scalar("DELETE FROM urls where code = $1 RETURNING url")
-            .bind(&code)
-            .fetch_optional(&state.pool)
-            .await;
+        let result = urls::delete_code(&state.pool, &code).await;
 
         match result {
             Ok(Some(url)) => {

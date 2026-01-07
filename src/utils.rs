@@ -1,6 +1,7 @@
-use super::config::BASE62;
 use axum::http::StatusCode;
 use rand::Rng;
+
+const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 pub fn generate_random_base62_code(length: usize) -> String {
     let mut rng = rand::rng();

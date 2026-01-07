@@ -1,5 +1,6 @@
 use crate::{
-    config::{AppState, CODE_LEN, PG_UNIQUE_VIOLATION},
+    config::{AppState, CODE_LEN},
+    db::{is_collision, queries::urls},
     models::ShortenPayload,
     utils::{generate_random_base62_code, internal_error, shortened_url_from_code},
 };
@@ -15,10 +16,8 @@ pub async fn shorten_url(
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
     validate_url_format(&payload.url)?;
 
-    // grab code and url for collision handling later
-    let existing: Option<String> = sqlx::query_scalar("SELECT code FROM urls WHERE url = $1")
-        .bind(&payload.url)
-        .fetch_optional(&state.pool)
+    // Check if this URL has already been shortened (duplicate detection)
+    let existing = urls::find_code_by_url(&state.pool, &payload.url)
         .await
         .map_err(internal_error)?;
 
@@ -35,11 +34,7 @@ pub async fn shorten_url(
         let code = generate_random_base62_code(CODE_LEN);
         debug!("Code generated: {}", &code);
 
-        let result = sqlx::query("INSERT INTO urls (code, url) VALUES ($1, $2)")
-            .bind(&code)
-            .bind(&payload.url)
-            .execute(&state.pool)
-            .await;
+        let result = urls::insert(&state.pool, &code, &payload.url).await;
 
         match result {
             Ok(_) => {
@@ -83,9 +78,4 @@ fn validate_url_format(url: &str) -> Result<(), (StatusCode, String)> {
             ),
         ))
     }
-}
-
-fn is_collision(db_err: &dyn sqlx::error::DatabaseError) -> bool {
-    // Unique constraint violation
-    db_err.code().is_some_and(|c| c == PG_UNIQUE_VIOLATION)
 }

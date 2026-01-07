@@ -1,4 +1,8 @@
-use crate::{config::AppState, utils::internal_error};
+use crate::{
+    config::AppState,
+    db::queries::{clicks, urls},
+    utils::internal_error,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -12,21 +16,13 @@ pub async fn redirect_url(
     Path(code): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Redirect, (StatusCode, String)> {
-    let result: Result<Option<String>, _> =
-        sqlx::query_scalar("SELECT url FROM urls WHERE code = $1")
-            .bind(&code)
-            .fetch_optional(&state.pool)
-            .await;
+    let result = urls::find_url_by_code(&state.pool, &code).await;
 
     match result {
         Ok(Some(url)) => {
             info!("Redirect target found");
 
-            if let Err(e) = sqlx::query("INSERT INTO clicks (code) VALUES ($1)")
-                .bind(&code)
-                .execute(&state.pool)
-                .await
-            {
+            if let Err(e) = clicks::insert(&state.pool, &code).await {
                 error!("Failed to record click analytics: {}", e);
             }
 

@@ -15,3 +15,17 @@ pub fn is_collision(db_err: &dyn sqlx::error::DatabaseError) -> bool {
     // Unique constraint violation
     db_err.code().is_some_and(|c| c == PG_UNIQUE_VIOLATION)
 }
+
+#[macro_export]
+macro_rules! sql_query {
+    ($module:literal, $file:literal) => {
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/",
+            $module,
+            "/",
+            $file,
+            ".sql"
+        ))
+    };
+}

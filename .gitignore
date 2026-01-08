@@ -18,5 +18,8 @@
 .direnv
 .pre-commit-config.yaml
 
+# Postgres
+data/
+
 .env
-.database/data/
+

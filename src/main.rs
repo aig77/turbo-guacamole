@@ -1,4 +1,4 @@
-use turbo_guacamole::{config, db, handlers};
+use turbo_guacamole::{config, db, handlers, middleware};
 
 use axum::{
     Router,
@@ -7,7 +7,8 @@ use axum::{
 use config::{AppState, Config, setup_tracing};
 use db::setup_database;
 use handlers::{admin::admin_routes, redirect::redirect_url, shorten::shorten_url};
-use std::sync::Arc;
+use middleware::rate_limit::setup_rate_limiter;
+use std::{net::SocketAddr, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -16,13 +17,15 @@ use tracing::info;
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     setup_tracing();
 
-    let config = Config::from_env()?;
+    let config = Config::from_env();
 
     info!(
-        service_host = %config.service_host,
-        service_port = %config.service_port,
-        database_url = %config.database_url,
-        "Server configuration loaded"
+        "Server configuration loaded: host={}, port={}, db={}, code_rate_limit={:?}, shorten_rate_limit={:?}",
+        config.service_host,
+        config.service_port,
+        config.database_url,
+        config.code_rate_limit_config,
+        config.shorten_rate_limit_config,
     );
 
     // set up connection pool
@@ -36,8 +39,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     let app = Router::new()
-        .route("/{code}", get(redirect_url))
-        .route("/shorten", post(shorten_url))
+        .route(
+            "/{code}",
+            get(redirect_url).layer(setup_rate_limiter(config.code_rate_limit_config)),
+        )
+        .route(
+            "/shorten",
+            post(shorten_url).layer(setup_rate_limiter(config.shorten_rate_limit_config)),
+        )
         .nest("/admin", admin_routes())
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
         .with_state(Arc::clone(&app_state));
@@ -48,7 +57,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

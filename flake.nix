@@ -42,6 +42,7 @@
             rustToolchain
             rust-analyzer
             pre-commit
+            docker-compose
           ];
 
           RUST_BACKTRACE = 1;

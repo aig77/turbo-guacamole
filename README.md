@@ -33,8 +33,9 @@ A simple URL Shortener in Rust.
 - [x] Logging | _tokio tracing_
 - [x] Modular Structure
 - [x] Analytics | _click table tracks redirects_
+- [x] Rate limit | _distinct ip rate limits on code and shorten endpoints_
+- [ ] JWT Auth
 - [ ] Analytics endpoints
-- [ ] Middleware (JWT, Rate limiting)
 
 ## Future considerations:
 - Redis Cache 

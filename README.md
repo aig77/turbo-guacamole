@@ -1,5 +1,4 @@
 # turbo-guacamole
----
 
 A simple URL Shortener in Rust.
 

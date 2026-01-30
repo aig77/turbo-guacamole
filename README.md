@@ -30,9 +30,18 @@ A simple URL Shortener in Rust.
 - [x] Modular Structure
 - [x] Analytics | _click table tracks redirects_
 - [x] Rate limit | _distinct ip rate limits on code and shorten endpoints_
-- [ ] JWT Auth
+- [x] Graceful shutdown
+- [x] Url length limit | _2048 should be good enough_
+- [ ] Health check endpoint
 - [ ] Analytics endpoints
+- [ ] CORS Configuration
+- [ ] Custom api error type
+- [ ] Request ID / correlation header
+- [ ] App dockerfile
+- [ ] OpenAPI spec
+- [ ] CI Pipeline
 
 ## Future considerations:
 - Redis Cache 
 - TTL Implemenation
+- JWT Auth

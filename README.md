@@ -15,8 +15,10 @@ A simple URL Shortener in Rust.
 
 **Public Routes:**
 - `GET /{code}` - Redirect to original URL
-- `GET /{code}/stats` - Total and daily clicks 
 - `POST /shorten` - Create shortened URL (body: `{"url": "https://example.com"}`)
+
+**Analytics Routes:**
+- `GET /{code}/stats` - Total and daily clicks 
 
 **Admin Routes (Basic Auth):**
 - `GET /admin/codes` - List all URL mappings

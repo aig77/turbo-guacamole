@@ -2,6 +2,7 @@ use crate::config::RateLimitConfig;
 use crate::state::AppState;
 use axum::Router;
 use axum::http::StatusCode;
+use axum::routing::get;
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -17,6 +18,7 @@ pub fn configure(
     Router::new()
         .nest("/v1", v1::configure(code_rate_limit, shorten_rate_limit))
         .nest("/admin", handlers::admin::admin_routes())
+        .route("health", get(handlers::health::health))
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
 }
 

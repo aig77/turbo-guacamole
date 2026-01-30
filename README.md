@@ -15,6 +15,7 @@ A simple URL Shortener in Rust.
 
 **Public Routes:**
 - `GET /{code}` - Redirect to original URL
+- `GET /{code}/stats` - Total and daily clicks 
 - `POST /shorten` - Create shortened URL (body: `{"url": "https://example.com"}`)
 
 **Admin Routes (Basic Auth):**
@@ -27,13 +28,16 @@ A simple URL Shortener in Rust.
 - [x] Postgres Migration | _sqlx + postgres_
 - [x] Collision strategy | _change to random code generation and handle collision using retries_ 
 - [x] Logging | _tokio tracing_
-- [x] Modular Structure
+- [x] Modular Structure | _great example [here](https://rust-api.dev/docs/part-1/tokio-hyper-axum/#routing)_
 - [x] Analytics | _click table tracks redirects_
+- [x] Analytics endpoints | _total and daily clicks for a single code_
 - [x] Rate limit | _distinct ip rate limits on code and shorten endpoints_
-- [x] Graceful shutdown
-- [x] Url length limit | _2048 should be good enough_
-- [ ] Health check endpoint
-- [ ] Analytics endpoints
+- [x] Graceful shutdown | _copied [axum example](https://github.com/tokio-rs/axum/blob/main/examples/graceful-shutdown/src/main.rs)_
+- [x] Url length limit | _2048 should be long enough_
+- [x] Health check endpoint | _checks database connection_
+- [ ] Redirect caching
+- [ ] URL TTL
+- [ ] JWT
 - [ ] CORS Configuration
 - [ ] Custom api error type
 - [ ] Request ID / correlation header
@@ -41,7 +45,5 @@ A simple URL Shortener in Rust.
 - [ ] OpenAPI spec
 - [ ] CI Pipeline
 
-## Future considerations:
-- Redis Cache 
-- TTL Implemenation
-- JWT Auth
+# Future Considerations
+- Frontend

@@ -51,10 +51,30 @@ pub mod urls {
 
 pub mod clicks {
     use crate::sql_query;
-    use sqlx::{PgPool, postgres::PgQueryResult};
+    use serde::Serialize;
+    use sqlx::{PgPool, postgres::PgQueryResult, types::chrono::NaiveDate};
 
     pub async fn insert(pool: &PgPool, code: &str) -> Result<PgQueryResult, sqlx::Error> {
         let stmt = sql_query!("clicks", "insert");
         sqlx::query(stmt).bind(code).execute(pool).await
+    }
+
+    pub async fn get_code_total_clicks(pool: &PgPool, code: &str) -> Result<i64, sqlx::Error> {
+        let stmt = sql_query!("clicks", "get_code_total_clicks");
+        sqlx::query_scalar(stmt).bind(code).fetch_one(pool).await
+    }
+
+    #[derive(Serialize, Debug, sqlx::FromRow)]
+    pub struct DailyClick {
+        date: NaiveDate,
+        count: i64,
+    }
+
+    pub async fn get_code_daily_clicks(
+        pool: &PgPool,
+        code: &str,
+    ) -> Result<Vec<DailyClick>, sqlx::Error> {
+        let stmt = sql_query!("clicks", "get_code_daily_clicks");
+        sqlx::query_as(stmt).bind(code).fetch_all(pool).await
     }
 }

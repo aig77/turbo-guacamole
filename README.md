@@ -1,7 +1,4 @@
 # turbo-guacamole
-
-![](.docs/turbo-guacamole.jpg)
-
 ---
 
 A simple URL Shortener in Rust.

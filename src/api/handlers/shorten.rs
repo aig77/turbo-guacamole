@@ -9,8 +9,9 @@ use std::sync::Arc;
 use tracing::{debug, error, info, instrument, warn};
 use url::Url;
 
+const URL_LENGTH_LIMIT: usize = 2048;
 const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-pub const CODE_LEN: usize = 6;
+const CODE_LEN: usize = 6;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ShortenPayload {
@@ -22,6 +23,14 @@ pub async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
+    if payload.url.len() > URL_LENGTH_LIMIT {
+        warn!("URL exceeds limit of {} characters", URL_LENGTH_LIMIT);
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("URL exceeds limit of {} characters", URL_LENGTH_LIMIT),
+        ));
+    }
+
     validate_url_format(&payload.url)?;
 
     let addr = format!(

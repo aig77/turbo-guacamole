@@ -1,4 +1,4 @@
-use crate::{config::AppState, db::queries::urls};
+use crate::{db::queries::urls, state::AppState};
 use axum::{
     Json, Router,
     extract::{Path, State},

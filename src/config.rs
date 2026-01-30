@@ -1,9 +1,11 @@
-use crate::middleware::rate_limit::RateLimitConfig;
-use sqlx::postgres::PgPool;
 use std::str::FromStr;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-pub const CODE_LEN: usize = 6;
+#[derive(Clone, Debug)]
+pub struct RateLimitConfig {
+    pub requests_per_second: u64,
+    pub burst_size: u32,
+    pub cleanup_interval_secs: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -55,21 +57,4 @@ where
         ),
         Err(_) => None,
     }
-}
-
-pub fn setup_tracing() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
-            }),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-}
-
-#[warn(dead_code)]
-pub struct AppState {
-    pub pool: PgPool,
-    pub config: Config,
 }

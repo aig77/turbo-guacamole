@@ -1,3 +1,4 @@
+use crate::config::RateLimitConfig;
 use axum::body::Body;
 use governor::middleware::NoOpMiddleware;
 use std::{sync::Arc, time::Duration};
@@ -5,15 +6,8 @@ use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::PeerIpKeyExtractor,
 };
 
-#[derive(Clone, Debug)]
-pub struct RateLimitConfig {
-    pub requests_per_second: u64,
-    pub burst_size: u32,
-    pub cleanup_interval_secs: u64,
-}
-
 pub fn setup_rate_limiter(
-    config: RateLimitConfig,
+    config: &RateLimitConfig,
 ) -> GovernorLayer<PeerIpKeyExtractor, NoOpMiddleware, Body> {
     tracing::info!(
         "rate limit config -> requests per second: {}, burst size: {}, cleanup interval secs: {}",

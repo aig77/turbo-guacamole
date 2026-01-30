@@ -1,13 +1,21 @@
 use crate::{
-    config::{AppState, CODE_LEN},
+    api::internal_error,
     db::{is_collision, queries::urls},
-    models::ShortenPayload,
-    utils::{generate_random_base62_code, internal_error, shortened_url_from_code},
+    state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode};
+use rand::Rng;
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument, warn};
 use url::Url;
+
+const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+pub const CODE_LEN: usize = 6;
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ShortenPayload {
+    pub url: String,
+}
 
 #[instrument(skip(state), fields(url = %payload.url))]
 pub async fn shorten_url(
@@ -83,4 +91,18 @@ fn validate_url_format(url: &str) -> Result<(), (StatusCode, String)> {
             ),
         ))
     }
+}
+
+fn generate_random_base62_code(length: usize) -> String {
+    let mut rng = rand::rng();
+    (0..length)
+        .map(|_| {
+            let idx = rng.random_range(0..62);
+            BASE62[idx] as char
+        })
+        .collect()
+}
+
+fn shortened_url_from_code(code: &str, service_host: &str) -> String {
+    format!("{}/{}", service_host, code)
 }

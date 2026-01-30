@@ -1,7 +1,7 @@
 use crate::{
-    config::AppState,
+    api::internal_error,
     db::queries::{clicks, urls},
-    utils::internal_error,
+    state::AppState,
 };
 use axum::{
     extract::{Path, State},

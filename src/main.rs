@@ -1,23 +1,14 @@
-use turbo_guacamole::{config, db, handlers, middleware};
+use turbo_guacamole::{api, config, db, state::AppState};
 
-use axum::{
-    Router,
-    routing::{get, post},
-};
-use config::{AppState, Config, setup_tracing};
-use db::setup_database;
-use handlers::{admin::admin_routes, redirect::redirect_url, shorten::shorten_url};
-use middleware::rate_limit::setup_rate_limiter;
 use std::{net::SocketAddr, sync::Arc};
-use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
 use tracing::info;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     setup_tracing();
 
-    let config = Config::from_env();
+    let config = config::Config::from_env();
 
     info!(
         "Server configuration loaded: host={}, port={}, db={}, code_rate_limit={:?}, shorten_rate_limit={:?}",
@@ -29,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
 
     // set up connection pool
-    let pool = setup_database(&config).await?;
+    let pool = db::setup_database(&config).await?;
 
     info!("Database connection established");
 
@@ -38,18 +29,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config: config.clone(),
     });
 
-    let app = Router::new()
-        .route(
-            "/{code}",
-            get(redirect_url).layer(setup_rate_limiter(config.code_rate_limit_config)),
-        )
-        .route(
-            "/shorten",
-            post(shorten_url).layer(setup_rate_limiter(config.shorten_rate_limit_config)),
-        )
-        .nest("/admin", admin_routes())
-        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
-        .with_state(Arc::clone(&app_state));
+    let app = api::configure(
+        &config.code_rate_limit_config,
+        &config.shorten_rate_limit_config,
+    )
+    .with_state(Arc::clone(&app_state));
 
     let addr = format!("{}:{}", &config.service_host, &config.service_port);
 
@@ -64,4 +48,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .await?;
 
     Ok(())
+}
+
+fn setup_tracing() {
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
+            }),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 }

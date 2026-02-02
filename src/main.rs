@@ -1,4 +1,4 @@
-use turbo_guacamole::{api, config, db, state::AppState};
+use turbo_guacamole::{api, cache, config, db, state::AppState};
 
 use std::{net::SocketAddr, sync::Arc};
 use tokio::signal;
@@ -12,21 +12,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config::Config::from_env();
 
     info!(
-        "Server configuration loaded: host={}, port={}, db={}, code_rate_limit={:?}, shorten_rate_limit={:?}",
+        "Server configuration loaded: host={}, port={}, db={}, cache={}, code_rate_limit={:?}, shorten_rate_limit={:?}",
         config.service_host,
         config.service_port,
         config.database_url,
+        config.cache_url,
         config.code_rate_limit_config,
         config.shorten_rate_limit_config,
     );
 
-    // set up connection pool
-    let pool = db::setup_database(&config).await?;
-
+    // set up postgres connection pool
+    let pool = db::setup_database(&config.database_url).await?;
     info!("Database connection established");
+
+    // set up redis connection pool
+    let redis_pool = cache::setup_cache(&config.cache_url).await;
 
     let app_state = Arc::new(AppState {
         pool,
+        redis_pool,
         config: config.clone(),
     });
 

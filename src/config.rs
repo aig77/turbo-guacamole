@@ -12,6 +12,7 @@ pub struct Config {
     pub service_host: String,
     pub service_port: String,
     pub database_url: String,
+    pub cache_url: String,
     pub admin_username: String,
     pub admin_password: String,
     pub code_rate_limit_config: RateLimitConfig,
@@ -26,6 +27,7 @@ impl Config {
             service_host: get_env("SERVICE_HOST").expect("SERVICE_HOST must be set"),
             service_port: get_env("SERVICE_PORT").expect("SERVICE_PORT"),
             database_url: get_env("DATABASE_URL").expect("DATABASE_URL must be set"),
+            cache_url: get_env("CACHE_URL").expect("CACHE_URL must be set"),
             admin_username: get_env("ADMIN_USERNAME").expect("ADMIN_USERNAME must be set"),
             admin_password: get_env("ADMIN_PASSWORD").expect("ADMIN_PASSWORD must be set"),
             code_rate_limit_config: RateLimitConfig {

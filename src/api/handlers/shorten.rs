@@ -12,6 +12,7 @@ use url::Url;
 const URL_LENGTH_LIMIT: usize = 2048;
 const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const CODE_LEN: usize = 6;
+const MAX_COLLISION_RETRIES: usize = 5;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ShortenPayload {
@@ -48,19 +49,41 @@ pub async fn shorten_url(
             "URL already exists, returning from existing code: {}",
             &code
         );
+        // add to cache
+        if let Ok(mut conn) = state.redis_pool.get().await {
+            let _ = redis::cmd("SET")
+                .arg(format!("short:{code}"))
+                .arg(&payload.url)
+                .arg("EX")
+                .arg(3600)
+                .query_async::<()>(&mut *conn)
+                .await;
+        }
         let shortened = shortened_url_from_code(&code, &addr);
         return Ok((StatusCode::OK, shortened));
     }
 
-    loop {
+    for _ in 0..MAX_COLLISION_RETRIES {
         let code = generate_random_base62_code(CODE_LEN);
         debug!("Code generated: {}", &code);
 
-        let result = urls::insert(&state.pool, &code, &payload.url).await;
-
-        match result {
+        match urls::insert(&state.pool, &code, &payload.url).await {
             Ok(_) => {
                 info!("Short URL created with code: {}", &code);
+
+                // add to cache
+                if let Ok(mut conn) = state.redis_pool.get().await {
+                    let _ = redis::cmd("SET")
+                        .arg(format!("short:{code}"))
+                        .arg(&payload.url)
+                        .arg("EX")
+                        .arg(3600)
+                        .query_async::<()>(&mut *conn)
+                        .await;
+
+                    debug!("Inserted into cache");
+                }
+
                 let shortened = shortened_url_from_code(&code, &addr);
                 return Ok((StatusCode::CREATED, shortened));
             }
@@ -74,6 +97,11 @@ pub async fn shorten_url(
             }
         }
     }
+
+    Err((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Maximum number of collisions exceeded".to_string(),
+    ))
 }
 
 fn validate_url_format(url: &str) -> Result<(), (StatusCode, String)> {

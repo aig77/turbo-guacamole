@@ -16,15 +16,44 @@ pub async fn redirect_url(
     Path(code): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Redirect, (StatusCode, String)> {
-    let result = urls::find_url_by_code(&state.pool, &code).await;
+    // Try to retrieve from cache
+    if let Ok(mut conn) = state.redis_pool.get().await
+        && let Ok(Some(url)) = redis::cmd("GET")
+            .arg(format!("short:{code}"))
+            .query_async::<Option<String>>(&mut *conn)
+            .await
+    {
+        info!("Cache hit");
 
-    match result {
+        if let Err(e) = clicks::insert(&state.pool, &code).await {
+            error!("Failed to record click analytics: {}", e);
+        }
+
+        return Ok(Redirect::temporary(&url));
+    }
+
+    // Cache miss, hit postgres
+    match urls::find_url_by_code(&state.pool, &code).await {
         Ok(Some(url)) => {
-            info!("Redirect target found");
+            info!("Cache miss, fetched from db");
+
+            if let Ok(mut conn) = state.redis_pool.get().await {
+                let _ = redis::cmd("SET")
+                    .arg(format!("short:{code}"))
+                    .arg(&url)
+                    .arg("EX")
+                    .arg(3600)
+                    .query_async::<()>(&mut *conn)
+                    .await;
+
+                info!("Inserted into cache");
+            }
 
             if let Err(e) = clicks::insert(&state.pool, &code).await {
                 error!("Failed to record click analytics: {}", e);
             }
+
+            info!("Redirecting");
 
             Ok(Redirect::temporary(&url))
         }

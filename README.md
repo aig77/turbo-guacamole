@@ -25,6 +25,36 @@ A simple URL Shortener in Rust.
 - `DELETE /admin/codes` - Delete all URLs
 - `DELETE /admin/codes/{code}` - Delete specific URL
 
+## Development
+**Database Usage**
+This project utilizes Postgres and Redis. For local development, ensure you have docker and docker-compose installed.
+
+```bash
+# Start containers
+docker-compose up -d
+
+# Stop containers:
+docker-compose down
+
+# Remove volumes and stop
+docker-compose down -v
+```
+
+You can also install cli tools to interact with the databases. `psql` and `redis-cli` are included in this project's nix shell.
+
+_Postgres_
+```bash
+psql -h localhost -p 5432 -U postgres -d postgres
+# or
+docker exec -it postgres psql -U postgres
+```
+_Redis_
+```bash
+redis-cli -h localhost -p 6379
+# or
+docker exec -it redis redis-cli
+```
+
 ## TODOs:
 - [x] Admin route protection | _added basic auth_
 - [x] Postgres Migration | _sqlx + postgres_

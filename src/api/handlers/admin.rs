@@ -55,6 +55,18 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
+        // also clear cache
+        if let Ok(mut conn) = state.redis_pool.get().await {
+            match redis::cmd("FLUSHDB")
+                .arg("ASYNC")
+                .query_async::<()>(&mut *conn)
+                .await
+            {
+                Ok(_) => debug!("Also deleted from cache"),
+                Err(_) => debug!("Failed to delete from cache"),
+            }
+        }
+
         let count = result.rows_affected();
         info!("Deleted {} rows", count);
         Ok(format!("Deleted {} rows", count))
@@ -73,11 +85,20 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        let result = urls::delete_code(&state.pool, &code).await;
-
-        match result {
+        match urls::delete_code(&state.pool, &code).await {
             Ok(Some(url)) => {
                 info!("Code successfully deleted");
+                // also delete from cache if available
+                if let Ok(mut conn) = state.redis_pool.get().await {
+                    match redis::cmd("DEL")
+                        .arg(format!("short:{code}"))
+                        .query_async::<()>(&mut *conn)
+                        .await
+                    {
+                        Ok(_) => debug!("Also deleted from cache"),
+                        Err(_) => debug!("Failed to delete from cache"),
+                    }
+                }
                 Ok(url)
             }
             Ok(None) => {

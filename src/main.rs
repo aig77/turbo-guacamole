@@ -23,10 +23,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // set up postgres connection pool
     let pool = db::setup_database(&config.database_url).await?;
-    info!("Database connection established");
+    info!("Postgres connection established");
 
     // set up redis connection pool
-    let redis_pool = cache::setup_cache(&config.cache_url).await;
+    let redis_pool = cache::setup_cache(&config.cache_url).await?;
+    info!("Redis connection established");
 
     let app_state = Arc::new(AppState {
         pool,

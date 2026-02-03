@@ -18,11 +18,11 @@ pub async fn analytics(
     Path(code): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<(StatusCode, Json<AnalyticsResponse>), (StatusCode, String)> {
-    let total_clicks = clicks::get_code_total_clicks(&state.pool, &code)
+    let total_clicks = clicks::get_code_total_clicks(&state.pg_pool, &code)
         .await
         .map_err(internal_error)?;
 
-    let daily_clicks = clicks::get_code_daily_clicks(&state.pool, &code)
+    let daily_clicks = clicks::get_code_daily_clicks(&state.pg_pool, &code)
         .await
         .map_err(internal_error)?;
 

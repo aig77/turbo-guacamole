@@ -40,7 +40,7 @@ pub async fn shorten_url(
     );
 
     // Check if this URL has already been shortened (duplicate detection)
-    let existing = urls::find_code_by_url(&state.pool, &payload.url)
+    let existing = urls::find_code_by_url(&state.pg_pool, &payload.url)
         .await
         .map_err(internal_error)?;
 
@@ -67,7 +67,7 @@ pub async fn shorten_url(
         let code = generate_random_base62_code(CODE_LEN);
         debug!("Code generated: {}", &code);
 
-        match urls::insert(&state.pool, &code, &payload.url).await {
+        match urls::insert(&state.pg_pool, &code, &payload.url).await {
             Ok(_) => {
                 info!("Short URL created with code: {}", &code);
 

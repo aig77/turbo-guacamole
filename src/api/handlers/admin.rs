@@ -25,7 +25,7 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        let urls: HashMap<String, String> = urls::list_all(&state.pool)
+        let urls: HashMap<String, String> = urls::list_all(&state.pg_pool)
             .await
             .map_err(|e| {
                 error!("Database query failed while listing codes: {}", e);
@@ -50,7 +50,7 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        let result = urls::delete_all(&state.pool).await.map_err(|e| {
+        let result = urls::delete_all(&state.pg_pool).await.map_err(|e| {
             error!("Database delete failed while removing all codes: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -85,7 +85,7 @@ pub fn admin_routes() -> Router<Arc<AppState>> {
             &state.config.admin_password,
         )?;
 
-        match urls::delete_code(&state.pool, &code).await {
+        match urls::delete_code(&state.pg_pool, &code).await {
             Ok(Some(url)) => {
                 info!("Code successfully deleted");
                 // also delete from cache if available

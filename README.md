@@ -30,7 +30,6 @@ A simple URL Shortener in Rust.
 - `GET /health` - Verifies application health by checking database connections
 
 ## Development
-**Database Usage**
 This project utilizes Postgres and Redis. For local development, ensure you have docker and docker-compose installed.
 
 ```bash

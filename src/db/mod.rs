@@ -1,14 +1,13 @@
 pub mod queries;
 
-use crate::config::Config;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 /// PostgreSQL unique constraint violation error code
 /// Reference: https://www.postgresql.org/docs/current/errcodes-appendix.html
 pub const PG_UNIQUE_VIOLATION: &str = "23505";
 
-pub async fn setup_database(config: &Config) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new().connect(&config.database_url).await
+pub async fn setup_database(url: &str) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new().connect(url).await
 }
 
 pub fn is_collision(db_err: &dyn sqlx::error::DatabaseError) -> bool {

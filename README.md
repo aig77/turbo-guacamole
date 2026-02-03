@@ -10,6 +10,7 @@ A simple URL Shortener in Rust.
 - PostgreSQL persistence
 - Request logging and tracing
 - Click analytics
+- Redis caching for faster reads
 
 ## Endpoints
 
@@ -24,6 +25,9 @@ A simple URL Shortener in Rust.
 - `GET /admin/codes` - List all URL mappings
 - `DELETE /admin/codes` - Delete all URLs
 - `DELETE /admin/codes/{code}` - Delete specific URL
+
+**Other:**
+- `GET /health` - Verifies application health by checking database connections
 
 ## Development
 **Database Usage**
@@ -67,7 +71,7 @@ docker exec -it redis redis-cli
 - [x] Graceful shutdown | _copied [axum example](https://github.com/tokio-rs/axum/blob/main/examples/graceful-shutdown/src/main.rs)_
 - [x] Url length limit | _2048 should be long enough_
 - [x] Health check endpoint | _checks database connection_
-- [ ] Redirect caching
+- [x] Redirect caching | _redis implemented_
 - [ ] URL TTL
 - [ ] JWT
 - [ ] CORS Configuration

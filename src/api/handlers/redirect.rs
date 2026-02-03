@@ -25,7 +25,7 @@ pub async fn redirect_url(
     {
         info!("Cache hit");
 
-        if let Err(e) = clicks::insert(&state.pool, &code).await {
+        if let Err(e) = clicks::insert(&state.pg_pool, &code).await {
             error!("Failed to record click analytics: {}", e);
         }
 
@@ -33,7 +33,7 @@ pub async fn redirect_url(
     }
 
     // Cache miss, hit postgres
-    match urls::find_url_by_code(&state.pool, &code).await {
+    match urls::find_url_by_code(&state.pg_pool, &code).await {
         Ok(Some(url)) => {
             info!("Cache miss, fetched from db");
 
@@ -49,7 +49,7 @@ pub async fn redirect_url(
                 info!("Inserted into cache");
             }
 
-            if let Err(e) = clicks::insert(&state.pool, &code).await {
+            if let Err(e) = clicks::insert(&state.pg_pool, &code).await {
                 error!("Failed to record click analytics: {}", e);
             }
 

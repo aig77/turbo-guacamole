@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
 
     // set up postgres connection pool
-    let pool = db::setup_database(&config.database_url).await?;
+    let pg_pool = db::setup_database(&config.database_url).await?;
     info!("Postgres connection established");
 
     // set up redis connection pool
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("Redis connection established");
 
     let app_state = Arc::new(AppState {
-        pool,
+        pg_pool,
         redis_pool,
         config: config.clone(),
     });

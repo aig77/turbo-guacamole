@@ -5,7 +5,10 @@ use std::sync::Arc;
 use tracing::{debug, warn};
 
 pub async fn health(State(state): State<Arc<AppState>>) -> StatusCode {
-    let pg_ok = sqlx::query("SELECT 1").execute(&state.pool).await.is_ok();
+    let pg_ok = sqlx::query("SELECT 1")
+        .execute(&state.pg_pool)
+        .await
+        .is_ok();
 
     let redis_ok = match state.redis_pool.get().await {
         Ok(mut conn) => redis::cmd("PING")

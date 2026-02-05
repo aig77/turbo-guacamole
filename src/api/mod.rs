@@ -17,7 +17,6 @@ pub fn configure(
 ) -> Router<Arc<AppState>> {
     Router::new()
         .nest("/v1", v1::configure(code_rate_limit, shorten_rate_limit))
-        .nest("/admin", handlers::admin::admin_routes())
         .route("/health", get(handlers::health::health))
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
 }

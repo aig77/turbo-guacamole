@@ -13,8 +13,6 @@ pub struct Config {
     pub service_port: String,
     pub database_url: String,
     pub cache_url: String,
-    pub admin_username: String,
-    pub admin_password: String,
     pub code_rate_limit_config: RateLimitConfig,
     pub shorten_rate_limit_config: RateLimitConfig,
 }
@@ -28,8 +26,6 @@ impl Config {
             service_port: get_env("SERVICE_PORT").expect("SERVICE_PORT"),
             database_url: get_env("DATABASE_URL").expect("DATABASE_URL must be set"),
             cache_url: get_env("CACHE_URL").expect("CACHE_URL must be set"),
-            admin_username: get_env("ADMIN_USERNAME").expect("ADMIN_USERNAME must be set"),
-            admin_password: get_env("ADMIN_PASSWORD").expect("ADMIN_PASSWORD must be set"),
             code_rate_limit_config: RateLimitConfig {
                 requests_per_second: get_env("CODE_REQUESTS_PER_SECOND")
                     .expect("CODE_REQUESTS_PER_SECOND must be set"),

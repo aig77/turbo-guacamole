@@ -12,12 +12,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config::Config::from_env();
 
     info!(
-        "Server configuration loaded: host={}, port={}, db={}, cache={}, code_rate_limit={:?}, shorten_rate_limit={:?}",
+        "Server configuration loaded: service_host={}, service_port={}, database_url={}, stale_url_days={}, cache_url={}, redirect_rate_limit={:?}, shorten_rate_limit={:?}",
         config.service_host,
         config.service_port,
         config.database_url,
+        config.stale_urls_days,
         config.cache_url,
-        config.code_rate_limit_config,
+        config.redirect_rate_limit_config,
         config.shorten_rate_limit_config,
     );
 
@@ -39,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     let app = api::configure(
-        &config.code_rate_limit_config,
+        &config.redirect_rate_limit_config,
         &config.shorten_rate_limit_config,
     )
     .with_state(Arc::clone(&app_state));

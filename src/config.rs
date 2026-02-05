@@ -12,10 +12,10 @@ pub struct Config {
     pub service_host: String,
     pub service_port: String,
     pub database_url: String,
-    pub cache_url: String,
-    pub code_rate_limit_config: RateLimitConfig,
-    pub shorten_rate_limit_config: RateLimitConfig,
     pub stale_urls_days: i32,
+    pub cache_url: String,
+    pub redirect_rate_limit_config: RateLimitConfig,
+    pub shorten_rate_limit_config: RateLimitConfig,
 }
 
 impl Config {
@@ -26,22 +26,18 @@ impl Config {
             service_host: get_env("SERVICE_HOST").expect("SERVICE_HOST must be set"),
             service_port: get_env("SERVICE_PORT").expect("SERVICE_PORT"),
             database_url: get_env("DATABASE_URL").expect("DATABASE_URL must be set"),
+            stale_urls_days: get_env("STALE_URLS_DAYS").unwrap_or(90),
             cache_url: get_env("CACHE_URL").expect("CACHE_URL must be set"),
-            code_rate_limit_config: RateLimitConfig {
-                requests_per_second: get_env("CODE_REQUESTS_PER_SECOND")
-                    .expect("CODE_REQUESTS_PER_SECOND must be set"),
-                burst_size: get_env("CODE_BURST_SIZE").expect("CODE_BURST_SIZE must be set"),
-                cleanup_interval_secs: get_env("CODE_CLEANUP_INTERVAL_SECS")
-                    .expect("CODE_CLEANUP_INTERVAL_SECS must be set"),
+            redirect_rate_limit_config: RateLimitConfig {
+                requests_per_second: get_env("REDIRECT_REQUESTS_PER_SECOND").unwrap_or(2),
+                burst_size: get_env("REDIRECT_BURST_SIZE").unwrap_or(5),
+                cleanup_interval_secs: get_env("REDIRECT_CLEANUP_INTERVAL_SECS").unwrap_or(60),
             },
             shorten_rate_limit_config: RateLimitConfig {
-                requests_per_second: get_env("SHORTEN_REQUESTS_PER_SECOND")
-                    .expect("SHORTEN_REQUESTS_PER_SECOND must be set"),
-                burst_size: get_env("SHORTEN_BURST_SIZE").expect("SHORTEN_BURST_SIZE must be set"),
-                cleanup_interval_secs: get_env("SHORTEN_CLEANUP_INTERVAL_SECS")
-                    .expect("SHORTEN_CLEANUP_INTERVAL_SECS must be set"),
+                requests_per_second: get_env("SHORTEN_REQUESTS_PER_SECOND").unwrap_or(12),
+                burst_size: get_env("SHORTEN_BURST_SIZE").unwrap_or(5),
+                cleanup_interval_secs: get_env("SHORTEN_CLEANUP_INTERVAL_SECS").unwrap_or(300),
             },
-            stale_urls_days: get_env("STALE_URLS_DAYS").unwrap_or(90),
         }
     }
 }

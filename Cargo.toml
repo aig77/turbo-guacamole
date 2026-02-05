@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.8"
-axum-extra = { version = "0.12.3", features = ["typed-header"] }
 bb8 = "0.9.1"
 chrono = { version = "0.4.43", features = ["serde"] }
 dotenvy = "0.15.7"

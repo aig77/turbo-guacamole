@@ -6,7 +6,6 @@ A simple URL Shortener in Rust.
 - Random 6-character Base62 code generation
 - Collision handling with automatic retry
 - Duplicate URL detection
-- Basic authentication for admin routes
 - PostgreSQL persistence
 - Request logging and tracing
 - Click analytics
@@ -14,17 +13,12 @@ A simple URL Shortener in Rust.
 
 ## Endpoints
 
-**Public Routes:**
+**Main Routes:**
 - `GET /{code}` - Redirect to original URL
 - `POST /shorten` - Create shortened URL (body: `{"url": "https://example.com"}`)
 
-**Analytics Routes:**
+**Analytics:**
 - `GET /{code}/stats` - Total and daily clicks 
-
-**Admin Routes (Basic Auth):**
-- `GET /admin/codes` - List all URL mappings
-- `DELETE /admin/codes` - Delete all URLs
-- `DELETE /admin/codes/{code}` - Delete specific URL
 
 **Other:**
 - `GET /health` - Verifies application health by checking database connections
@@ -59,13 +53,12 @@ docker exec -it redis redis-cli
 ```
 
 ## TODOs:
-- [x] Admin route protection | _added basic auth_
 - [x] Postgres Migration | _sqlx + postgres_
 - [x] Collision strategy | _change to random code generation and handle collision using retries_ 
+- [x] Max collision retries | _set to 5_
 - [x] Logging | _tokio tracing_
 - [x] Modular Structure | _great example [here](https://rust-api.dev/docs/part-1/tokio-hyper-axum/#routing)_
-- [x] Analytics | _click table tracks redirects_
-- [x] Analytics endpoints | _total and daily clicks for a single code_
+- [x] Analytics endpoints | _click table tracks redirects + endpoint retrieves total and daily clicks for a single code_
 - [x] Rate limit | _distinct ip rate limits on code and shorten endpoints_
 - [x] Graceful shutdown | _copied [axum example](https://github.com/tokio-rs/axum/blob/main/examples/graceful-shutdown/src/main.rs)_
 - [x] Url length limit | _2048 should be long enough_

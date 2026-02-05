@@ -25,6 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pg_pool = db::setup_database(&config.database_url).await?;
     info!("Postgres connection established");
 
+    // start stale URL cleanup task
+    db::start_cleanup_task(pg_pool.clone(), config.stale_urls_days);
+
     // set up redis connection pool
     let redis_pool = cache::setup_cache(&config.cache_url).await?;
     info!("Redis connection established");

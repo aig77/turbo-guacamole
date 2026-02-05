@@ -15,6 +15,7 @@ pub struct Config {
     pub cache_url: String,
     pub code_rate_limit_config: RateLimitConfig,
     pub shorten_rate_limit_config: RateLimitConfig,
+    pub stale_urls_days: i32,
 }
 
 impl Config {
@@ -40,6 +41,7 @@ impl Config {
                 cleanup_interval_secs: get_env("SHORTEN_CLEANUP_INTERVAL_SECS")
                     .expect("SHORTEN_CLEANUP_INTERVAL_SECS must be set"),
             },
+            stale_urls_days: get_env("STALE_URLS_DAYS").unwrap_or(90),
         }
     }
 }

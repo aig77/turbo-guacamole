@@ -10,6 +10,7 @@ A simple URL Shortener in Rust.
 - Request logging and tracing
 - Click analytics
 - Redis caching for faster reads
+- Automatically delete stale URLs
 
 ## Endpoints
 
@@ -64,6 +65,7 @@ docker exec -it redis redis-cli
 - [x] Url length limit | _2048 should be long enough_
 - [x] Health check endpoint | _checks database connection_
 - [x] Redirect caching | _redis implemented_
+- [x] Clear stale URLs | _added async task to clear daily (exceeding 90 days without clicks)_
 - [ ] URL TTL
 - [ ] JWT
 - [ ] CORS Configuration

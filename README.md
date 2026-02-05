@@ -66,7 +66,6 @@ docker exec -it redis redis-cli
 - [x] Health check endpoint | _checks database connection_
 - [x] Redirect caching | _redis implemented_
 - [x] Clear stale URLs | _added async task to clear daily (exceeding 90 days without clicks)_
-- [ ] URL TTL
 - [ ] JWT
 - [ ] CORS Configuration
 - [ ] Custom api error type

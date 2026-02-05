@@ -10,4 +10,5 @@ CREATE TABLE IF NOT EXISTS clicks (
   clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_clicks_code ON clicks(code);
+-- speeds up queries that filter or join on the code field in the clicks table
+CREATE INDEX idx_clicks_code_date ON clicks(code, clicked_at);

@@ -4,7 +4,7 @@ use axum::Router;
 use axum::routing::get;
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::cors::CorsLayer;
 
 mod handlers;
 mod middleware;
@@ -20,9 +20,8 @@ pub fn configure(
         .layer(
             ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(
-                    middleware::request_id::request_id_middleware,
+                    middleware::tracing::tracing_middleware,
                 ))
-                .layer(TraceLayer::new_for_http())
                 .layer(CorsLayer::permissive()),
         )
 }

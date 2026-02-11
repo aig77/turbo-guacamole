@@ -68,8 +68,8 @@ docker exec -it redis redis-cli
 - [x] Clear stale URLs | _added async task to clear daily (exceeding 90 days without clicks)_
 - [x] Custom api error type
 - [x] Request ID / correlation header
+- [x] OpenAPI spec
 - [ ] App dockerfile
-- [ ] OpenAPI spec
 - [ ] CI Pipeline
 
 # Future Considerations

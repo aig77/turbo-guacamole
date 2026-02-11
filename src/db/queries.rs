@@ -53,6 +53,7 @@ pub mod clicks {
     use crate::sql_query;
     use serde::Serialize;
     use sqlx::{PgPool, postgres::PgQueryResult, types::chrono::NaiveDate};
+    use utoipa::ToSchema;
 
     pub async fn insert(pool: &PgPool, code: &str) -> Result<PgQueryResult, sqlx::Error> {
         let stmt = sql_query!("clicks", "insert");
@@ -64,7 +65,7 @@ pub mod clicks {
         sqlx::query_scalar(stmt).bind(code).fetch_one(pool).await
     }
 
-    #[derive(Serialize, Debug, sqlx::FromRow)]
+    #[derive(Serialize, Debug, sqlx::FromRow, ToSchema)]
     pub struct DailyClick {
         date: NaiveDate,
         count: i64,

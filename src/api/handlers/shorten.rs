@@ -9,17 +9,37 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument, warn};
 use url::Url;
+use utoipa::ToSchema;
 
 const URL_LENGTH_LIMIT: usize = 2048;
 const BASE62: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const CODE_LEN: usize = 6;
 const MAX_COLLISION_RETRIES: usize = 5;
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, ToSchema)]
 pub struct ShortenPayload {
+    /// The URL to shorten
+    #[schema(
+        example = "https://example.com",
+        max_length = 2048,
+        pattern = "^https?://.*",
+        format = "uri"
+    )]
     pub url: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/shorten",
+    request_body = ShortenPayload,
+    responses(
+        (status = 200, description = "URL found"),
+        (status = 201, description = "URL shortened successfully", body = String, example = "http://example.com/v1/abc123"),
+        (status = 400, description = "Invalid URL or URL too long"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "urls"
+)]
 #[instrument(skip(state))]
 pub async fn shorten_url(
     State(state): State<Arc<AppState>>,

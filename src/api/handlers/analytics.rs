@@ -6,14 +6,28 @@ use axum::{
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::instrument;
+use utoipa::ToSchema;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, ToSchema)]
 pub struct AnalyticsResponse {
     code: String,
     total_clicks: i64,
     daily_clicks: Vec<clicks::DailyClick>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/{code}/stats",
+    params(
+        ("code" = String, Path, description = "Short URL code")
+    ),
+    responses(
+        (status = 200, description = "Analytics retrieved successfully", body = AnalyticsResponse),
+        (status = 404, description = "URL code not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "urls"
+)]
 #[instrument(skip(state), fields(code = %code))]
 pub async fn analytics(
     Path(code): Path<String>,

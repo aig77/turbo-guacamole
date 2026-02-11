@@ -1,8 +1,9 @@
 pub mod queries;
 
+use crate::sql_query;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::time::Duration;
-use tracing::info;
+use tracing::{error, info};
 
 /// PostgreSQL unique constraint violation error code
 /// Reference: https://www.postgresql.org/docs/current/errcodes-appendix.html
@@ -18,17 +19,10 @@ pub fn is_collision(db_err: &dyn sqlx::error::DatabaseError) -> bool {
 }
 
 pub async fn cleanup_stale_urls(pool: &PgPool, days: i32) -> Result<u64, sqlx::Error> {
-    let interval = format!("{} days", days);
-    let result = sqlx::query(&format!(
-        "DELETE FROM urls u WHERE NOT EXISTS (
-              SELECT 1 FROM clicks c
-              WHERE c.code = u.code
-              AND c.clicked_at > NOW() - INTERVAL '{}'
-            )",
-        interval
-    ))
-    .execute(pool)
-    .await?;
+    let result = sqlx::query(sql_query!("", "cleanup_stale_urls"))
+        .bind(days)
+        .execute(pool)
+        .await?;
 
     Ok(result.rows_affected())
 }
@@ -40,7 +34,7 @@ pub fn start_cleanup_task(pool: PgPool, stale_urls_days: i32) {
 
             match cleanup_stale_urls(&pool, stale_urls_days).await {
                 Ok(rows) => info!("Cleaned up {} stale URLs", rows),
-                Err(e) => info!("Error cleaning stale URLs: {}", e),
+                Err(e) => error!("Error cleaning stale URLs: {}", e),
             }
         }
     });

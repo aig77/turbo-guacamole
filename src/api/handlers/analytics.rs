@@ -1,7 +1,8 @@
-use crate::{api::internal_error, db::queries::clicks, state::AppState};
-use axum::Json;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use crate::{db::queries::clicks, error::ApiResult, state::AppState};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::instrument;
@@ -17,14 +18,10 @@ pub struct AnalyticsResponse {
 pub async fn analytics(
     Path(code): Path<String>,
     State(state): State<Arc<AppState>>,
-) -> Result<(StatusCode, Json<AnalyticsResponse>), (StatusCode, String)> {
-    let total_clicks = clicks::get_code_total_clicks(&state.pg_pool, &code)
-        .await
-        .map_err(internal_error)?;
+) -> ApiResult<Json<AnalyticsResponse>> {
+    let total_clicks = clicks::get_code_total_clicks(&state.pg_pool, &code).await?;
 
-    let daily_clicks = clicks::get_code_daily_clicks(&state.pg_pool, &code)
-        .await
-        .map_err(internal_error)?;
+    let daily_clicks = clicks::get_code_daily_clicks(&state.pg_pool, &code).await?;
 
     let response = AnalyticsResponse {
         code,
@@ -32,5 +29,5 @@ pub async fn analytics(
         daily_clicks,
     };
 
-    Ok((StatusCode::OK, Json(response)))
+    Ok(Json(response))
 }

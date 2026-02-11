@@ -1,6 +1,7 @@
 use crate::{
-    api::internal_error,
+    cache::add_to_cache,
     db::{is_collision, queries::urls},
+    error::{ApiError, ApiResult},
     state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode};
@@ -23,13 +24,12 @@ pub struct ShortenPayload {
 pub async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
-) -> Result<(StatusCode, String), (StatusCode, String)> {
+) -> ApiResult<(StatusCode, String)> {
     if payload.url.len() > URL_LENGTH_LIMIT {
         warn!("URL exceeds limit of {} characters", URL_LENGTH_LIMIT);
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!("URL exceeds limit of {} characters", URL_LENGTH_LIMIT),
-        ));
+        return Err(ApiError::UrlTooLong {
+            max: URL_LENGTH_LIMIT,
+        });
     }
 
     validate_url_format(&payload.url)?;
@@ -40,25 +40,14 @@ pub async fn shorten_url(
     );
 
     // Check if this URL has already been shortened (duplicate detection)
-    let existing = urls::find_code_by_url(&state.pg_pool, &payload.url)
-        .await
-        .map_err(internal_error)?;
+    let existing = urls::find_code_by_url(&state.pg_pool, &payload.url).await?;
 
     if let Some(code) = existing {
         info!(
             "URL already exists, returning from existing code: {}",
             &code
         );
-        // add to cache
-        if let Ok(mut conn) = state.redis_pool.get().await {
-            let _ = redis::cmd("SET")
-                .arg(format!("short:{code}"))
-                .arg(&payload.url)
-                .arg("EX")
-                .arg(3600)
-                .query_async::<()>(&mut *conn)
-                .await;
-        }
+        add_to_cache(&state.redis_pool, &code, &payload.url).await;
         let shortened = shortened_url_from_code(&code, &addr);
         return Ok((StatusCode::OK, shortened));
     }
@@ -70,20 +59,7 @@ pub async fn shorten_url(
         match urls::insert(&state.pg_pool, &code, &payload.url).await {
             Ok(_) => {
                 info!("Short URL created with code: {}", &code);
-
-                // add to cache
-                if let Ok(mut conn) = state.redis_pool.get().await {
-                    let _ = redis::cmd("SET")
-                        .arg(format!("short:{code}"))
-                        .arg(&payload.url)
-                        .arg("EX")
-                        .arg(3600)
-                        .query_async::<()>(&mut *conn)
-                        .await;
-
-                    debug!("Inserted into cache");
-                }
-
+                add_to_cache(&state.redis_pool, &code, &payload.url).await;
                 let shortened = shortened_url_from_code(&code, &addr);
                 return Ok((StatusCode::CREATED, shortened));
             }
@@ -93,24 +69,18 @@ pub async fn shorten_url(
             }
             Err(e) => {
                 error!("Database insert failed while creating short URL: {}", e);
-                return Err(internal_error(e));
+                return Err(ApiError::Database(e));
             }
         }
     }
 
-    Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Maximum number of collisions exceeded".to_string(),
-    ))
+    Err(ApiError::TooManyCollisions)
 }
 
-fn validate_url_format(url: &str) -> Result<(), (StatusCode, String)> {
+fn validate_url_format(url: &str) -> ApiResult<()> {
     let parsed = Url::parse(url).map_err(|e| {
         warn!("Invalid URL format: {}", e);
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid URL format: {}", e),
-        )
+        ApiError::InvalidUrl(e)
     })?;
 
     if parsed.scheme() == "http" || parsed.scheme() == "https" {
@@ -120,13 +90,9 @@ fn validate_url_format(url: &str) -> Result<(), (StatusCode, String)> {
             scheme = %parsed.scheme(),
             "Rejected URL with unsupported scheme (only http/https allowed)"
         );
-        Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "Rejected URL with unsupported scheme (only http/https allowed): {}",
-                parsed.scheme()
-            ),
-        ))
+        Err(ApiError::UnsupportedScheme {
+            scheme: parsed.scheme().to_string(),
+        })
     }
 }
 

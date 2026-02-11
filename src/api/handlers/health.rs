@@ -4,6 +4,15 @@ use axum::http::StatusCode;
 use std::sync::Arc;
 use tracing::{debug, warn};
 
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Service is healthy"),
+        (status = 503, description = "Service is unhealthy")
+    ),
+    tag = "health"
+)]
 pub async fn health(State(state): State<Arc<AppState>>) -> StatusCode {
     let pg_ok = sqlx::query("SELECT 1")
         .execute(&state.pg_pool)

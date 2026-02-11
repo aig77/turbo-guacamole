@@ -29,4 +29,6 @@ tower_governor = { version = "0.8.0", features = ["axum"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5.7"
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 uuid = { version = "1.20.0", features = ["v4"] }

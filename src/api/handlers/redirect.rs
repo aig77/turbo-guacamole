@@ -11,6 +11,19 @@ use axum::{
 use std::sync::Arc;
 use tracing::{error, info, instrument, warn};
 
+#[utoipa::path(
+    get,
+    path = "/v1/{code}",
+    params(
+        ("code" = String, Path, description = "Short URL code to redirect")
+    ),
+    responses(
+        (status = 200, description = "Redirect successful"),
+        (status = 404, description = "URL not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "urls"
+)]
 #[instrument(skip(state), fields(code = %code))]
 pub async fn redirect_url(
     Path(code): Path<String>,

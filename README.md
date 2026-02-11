@@ -66,13 +66,13 @@ docker exec -it redis redis-cli
 - [x] Health check endpoint | _checks database connection_
 - [x] Redirect caching | _redis implemented_
 - [x] Clear stale URLs | _added async task to clear daily (exceeding 90 days without clicks)_
-- [ ] JWT
-- [ ] CORS Configuration
-- [ ] Custom api error type
-- [ ] Request ID / correlation header
+- [x] Custom api error type
+- [x] Request ID / correlation header
 - [ ] App dockerfile
 - [ ] OpenAPI spec
 - [ ] CI Pipeline
 
 # Future Considerations
 - Frontend
+- Restrictive CORS
+- JWT

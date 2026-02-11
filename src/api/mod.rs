@@ -4,7 +4,7 @@ use axum::Router;
 use axum::routing::get;
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 mod handlers;
 mod middleware;
@@ -17,5 +17,12 @@ pub fn configure(
     Router::new()
         .nest("/v1", v1::configure(code_rate_limit, shorten_rate_limit))
         .route("/health", get(handlers::health::health))
-        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
+        .layer(
+            ServiceBuilder::new()
+                .layer(axum::middleware::from_fn(
+                    middleware::request_id::request_id_middleware,
+                ))
+                .layer(TraceLayer::new_for_http())
+                .layer(CorsLayer::permissive()),
+        )
 }

@@ -20,7 +20,7 @@ pub struct ShortenPayload {
     pub url: String,
 }
 
-#[instrument(skip(state), fields(url = %payload.url))]
+#[instrument(skip(state))]
 pub async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,

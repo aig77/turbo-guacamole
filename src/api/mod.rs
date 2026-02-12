@@ -1,7 +1,9 @@
 use crate::config::RateLimitConfig;
 use crate::state::AppState;
-use axum::Router;
-use axum::routing::get;
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
@@ -10,7 +12,6 @@ use utoipa_swagger_ui::SwaggerUi;
 
 mod handlers;
 mod middleware;
-mod v1;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -40,12 +41,29 @@ mod v1;
 pub struct ApiDoc;
 
 pub fn configure(
-    code_rate_limit: &RateLimitConfig,
-    shorten_rate_limit: &RateLimitConfig,
+    redirect_rate_limit_config: &RateLimitConfig,
+    shorten_rate_limit_config: &RateLimitConfig,
 ) -> Router<Arc<AppState>> {
+    let redirect_rate_limit =
+        middleware::rate_limit::setup_rate_limiter(redirect_rate_limit_config);
+    let analytics_rate_limit =
+        middleware::rate_limit::setup_rate_limiter(&RateLimitConfig::default());
+    let shorten_rate_limit = middleware::rate_limit::setup_rate_limiter(shorten_rate_limit_config);
+
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .nest("/v1", v1::configure(code_rate_limit, shorten_rate_limit))
+        .route(
+            "/{code}",
+            get(handlers::redirect::redirect_url).layer(redirect_rate_limit),
+        )
+        .route(
+            "/shorten",
+            post(handlers::shorten::shorten_url).layer(shorten_rate_limit),
+        )
+        .route(
+            "/{code}/stats",
+            get(handlers::analytics::analytics).layer(analytics_rate_limit),
+        )
         .route("/health", get(handlers::health::health))
         .layer(
             ServiceBuilder::new()

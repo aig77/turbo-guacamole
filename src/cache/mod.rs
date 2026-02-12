@@ -22,3 +22,34 @@ pub async fn add_to_cache(pool: &RedisPool, code: &str, url: &str) {
         debug!("Failed to connect to redis pool when inserting");
     }
 }
+
+pub async fn get_stats(pool: &RedisPool) -> Option<(i64, i64)> {
+    if let Ok(mut conn) = pool.get().await {
+        let result = redis::cmd("GET")
+            .arg("stats:global")
+            .query_async(&mut *conn)
+            .await;
+
+        debug!("Inserted into cache");
+        result.ok()
+    } else {
+        debug!("Failed to connect to redis pool when inserting");
+        None
+    }
+}
+
+pub async fn set_stats(pool: &RedisPool, total_urls: i64, total_clicks: i64, ttl_seconds: u64) {
+    if let Ok(mut conn) = pool.get().await {
+        let _ = redis::cmd("SET")
+            .arg("stats:global")
+            .arg(format!("{},{}", total_urls, total_clicks))
+            .arg("EX")
+            .arg(ttl_seconds)
+            .query_async::<()>(&mut *conn)
+            .await;
+
+        debug!("Inserted into cache");
+    } else {
+        debug!("Failed to connect to redis pool when inserting");
+    }
+}

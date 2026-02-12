@@ -79,3 +79,14 @@ pub mod clicks {
         sqlx::query_as(stmt).bind(code).fetch_all(pool).await
     }
 }
+
+pub mod stats {
+    use crate::sql_query;
+    use sqlx::PgPool;
+
+    pub async fn get_total_counts(pool: &PgPool) -> Result<(i64, i64), sqlx::Error> {
+        let stmt = sql_query!("stats", "get_stats");
+        let result: (i64, i64) = sqlx::query_as(stmt).fetch_one(pool).await?;
+        Ok(result)
+    }
+}

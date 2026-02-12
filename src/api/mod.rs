@@ -18,18 +18,21 @@ mod middleware;
       paths(
           handlers::shorten::shorten_url,
           handlers::redirect::redirect_url,
-          handlers::analytics::analytics,
+          handlers::analytics::get_stats,
+          handlers::analytics::get_code_stats,
           handlers::health::health,
       ),
       components(
           schemas(
               handlers::shorten::ShortenPayload,
-              handlers::analytics::AnalyticsResponse,
-              crate::db::queries::clicks::DailyClick
+              handlers::analytics::StatsResponse,
+              handlers::analytics::CodeStatsResponse,
+              crate::db::queries::clicks::DailyClick,
           )
       ),
       tags(
           (name = "urls", description = "URL shortening and redirect operations"),
+          (name = "analytics", description = "URL shortening and redirect analytics"),
           (name = "health", description = "Health check endpoints")
       ),
       info(
@@ -46,9 +49,9 @@ pub fn configure(
 ) -> Router<Arc<AppState>> {
     let redirect_rate_limit =
         middleware::rate_limit::setup_rate_limiter(redirect_rate_limit_config);
-    let analytics_rate_limit =
-        middleware::rate_limit::setup_rate_limiter(&RateLimitConfig::default());
     let shorten_rate_limit = middleware::rate_limit::setup_rate_limiter(shorten_rate_limit_config);
+    let default_rate_limit =
+        middleware::rate_limit::setup_rate_limiter(&RateLimitConfig::default());
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
@@ -61,8 +64,12 @@ pub fn configure(
             post(handlers::shorten::shorten_url).layer(shorten_rate_limit),
         )
         .route(
+            "/stats",
+            get(handlers::analytics::get_stats).layer(default_rate_limit.clone()),
+        )
+        .route(
             "/{code}/stats",
-            get(handlers::analytics::analytics).layer(analytics_rate_limit),
+            get(handlers::analytics::get_code_stats).layer(default_rate_limit),
         )
         .route("/health", get(handlers::health::health))
         .layer(

@@ -6,7 +6,7 @@ use axum::{
 };
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, services::ServeFile};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -25,6 +25,7 @@ mod middleware;
       components(
           schemas(
               handlers::shorten::ShortenPayload,
+              handlers::shorten::ShortenResponse,
               handlers::analytics::StatsResponse,
               handlers::analytics::CodeStatsResponse,
               crate::db::queries::clicks::DailyClick,
@@ -55,10 +56,7 @@ pub fn configure(
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .route(
-            "/{code}",
-            get(handlers::redirect::redirect_url).layer(redirect_rate_limit),
-        )
+        .route_service("/", ServeFile::new("static/index.html"))
         .route(
             "/shorten",
             post(handlers::shorten::shorten_url).layer(shorten_rate_limit),
@@ -67,11 +65,15 @@ pub fn configure(
             "/stats",
             get(handlers::analytics::get_stats).layer(default_rate_limit.clone()),
         )
+        .route("/health", get(handlers::health::health))
         .route(
             "/{code}/stats",
             get(handlers::analytics::get_code_stats).layer(default_rate_limit),
         )
-        .route("/health", get(handlers::health::health))
+        .route(
+            "/{code}",
+            get(handlers::redirect::redirect_url).layer(redirect_rate_limit),
+        )
         .layer(
             ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(

@@ -1,4 +1,4 @@
-# turbo-guacamole
+# Turbo Guacamole 🥑 
 
 A simple URL Shortener in Rust.
 
@@ -7,10 +7,11 @@ A simple URL Shortener in Rust.
 - Collision handling with automatic retry
 - Duplicate URL detection
 - PostgreSQL persistence
-- Request logging and tracing
+- Request logging and tracing with request IDs
 - Click analytics
 - Redis caching for faster reads
 - Automatically delete stale URLs
+- Swagger UI
 
 ## Endpoints
 
@@ -19,7 +20,8 @@ A simple URL Shortener in Rust.
 - `POST /shorten` - Create shortened URL (body: `{"url": "https://example.com"}`)
 
 **Analytics:**
-- `GET /{code}/stats` - Total and daily clicks 
+- `GET /stats` - Total URLs and clicks
+- `GET /{code}/stats` - Total and daily clicks by code
 
 **Other:**
 - `GET /health` - Verifies application health by checking database connections
@@ -69,10 +71,9 @@ docker exec -it redis redis-cli
 - [x] Custom api error type
 - [x] Request ID / correlation header
 - [x] OpenAPI spec
+- [x] Frontend
 - [ ] App dockerfile
 - [ ] CI Pipeline
 
 # Future Considerations
-- Frontend
-- Restrictive CORS
 - JWT

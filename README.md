@@ -55,6 +55,10 @@ redis-cli -h localhost -p 6379
 docker exec -it redis redis-cli
 ```
 
+## Deployment
+
+See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for a complete guide on deploying to production with Fly.io + Hetzner VPS.
+
 ## TODOs:
 - [x] Postgres Migration | _sqlx + postgres_
 - [x] Collision strategy | _change to random code generation and handle collision using retries_ 
@@ -72,8 +76,8 @@ docker exec -it redis redis-cli
 - [x] Request ID / correlation header
 - [x] OpenAPI spec
 - [x] Frontend
-- [ ] App dockerfile
-- [ ] CI Pipeline
+- [x] App dockerfile
+- [x] CI Pipeline
 
 # Future Considerations
 - JWT

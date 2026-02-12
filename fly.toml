@@ -1,41 +1,41 @@
-app = "turbo-guacamole"
-primary_region = "iad"
+# fly.toml app configuration file generated for turbo-guacamole on 2026-02-11T22:00:46-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'turbo-guacamole'
+primary_region = 'iad'
 
 [build]
 
 [env]
-  SERVICE_HOST = "0.0.0.0"
-  SERVICE_PORT = "8080"
-  STALE_URLS_DAYS = "90"
-  REDIRECT_RATE_LIMIT = "20:30:60"
-  SHORTEN_RATE_LIMIT = "5:10:300"
+  REDIRECT_RATE_LIMIT = '20:30:60'
+  SERVICE_HOST = '0.0.0.0'
+  SERVICE_PORT = '8080'
+  SHORTEN_RATE_LIMIT = '5:10:300'
+  STALE_URLS_DAYS = '90'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "off"
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
-  [http_service.concurrency]
-    type = "connections"
-    hard_limit = 1000
-    soft_limit = 500
+[http_service.concurrency]
+  type = 'connections'
+  hard_limit = 1000
+  soft_limit = 500
 
-[[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
-  cpus = 1
-
-# Health check configuration
-[[services.http_checks]]
+[[http_service.checks]]
   interval = "30s"
   timeout = "5s"
   grace_period = "10s"
   method = "GET"
   path = "/health"
-
-# Secrets to set via fly secrets set:
-# - DATABASE_URL: PostgreSQL connection string from Hetzner VPS
-# - CACHE_URL: Redis connection string from Hetzner VPS
+  
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

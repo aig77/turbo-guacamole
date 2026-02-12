@@ -30,11 +30,11 @@ pub struct ShortenPayload {
 
 #[utoipa::path(
     post,
-    path = "/v1/shorten",
+    path = "/shorten",
     request_body = ShortenPayload,
     responses(
         (status = 200, description = "URL found"),
-        (status = 201, description = "URL shortened successfully", body = String, example = "http://example.com/v1/abc123"),
+        (status = 201, description = "URL shortened successfully", body = String, example = "http://example.com/abc123"),
         (status = 400, description = "Invalid URL or URL too long"),
         (status = 500, description = "Internal server error")
     ),

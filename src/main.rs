@@ -15,9 +15,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "Server configuration loaded: service_host={}, service_port={}, database_url={}, stale_url_days={}, cache_url={}, redirect_rate_limit={:?}, shorten_rate_limit={:?}",
         config.service_host,
         config.service_port,
-        config.database_url,
+        if config.database_url.len() > 15 {
+            format!("{}...", &config.database_url[..15])
+        } else {
+            config.database_url.clone()
+        },
         config.stale_urls_days,
-        config.cache_url,
+        if config.cache_url.len() > 15 {
+            format!("{}...", &config.cache_url[..15])
+        } else {
+            config.cache_url.clone()
+        },
         config.redirect_rate_limit_config,
         config.shorten_rate_limit_config,
     );

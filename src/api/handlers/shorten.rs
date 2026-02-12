@@ -28,13 +28,19 @@ pub struct ShortenPayload {
     pub url: String,
 }
 
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct ShortenResponse {
+    /// The generated short code
+    pub code: String,
+}
+
 #[utoipa::path(
     post,
     path = "/shorten",
     request_body = ShortenPayload,
     responses(
-        (status = 200, description = "URL found"),
-        (status = 201, description = "URL shortened successfully", body = String, example = "http://example.com/abc123"),
+        (status = 200, description = "URL already exists", body = ShortenResponse),
+        (status = 201, description = "URL shortened successfully", body = ShortenResponse),
         (status = 400, description = "Invalid URL or URL too long"),
         (status = 500, description = "Internal server error")
     ),
@@ -44,7 +50,7 @@ pub struct ShortenPayload {
 pub async fn shorten_url(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ShortenPayload>,
-) -> ApiResult<(StatusCode, String)> {
+) -> ApiResult<(StatusCode, Json<ShortenResponse>)> {
     if payload.url.len() > URL_LENGTH_LIMIT {
         warn!("URL exceeds limit of {} characters", URL_LENGTH_LIMIT);
         return Err(ApiError::UrlTooLong {
@@ -53,11 +59,6 @@ pub async fn shorten_url(
     }
 
     validate_url_format(&payload.url)?;
-
-    let addr = format!(
-        "{}:{}",
-        &state.config.service_host, &state.config.service_port
-    );
 
     // Check if this URL has already been shortened (duplicate detection)
     let existing = urls::find_code_by_url(&state.pg_pool, &payload.url).await?;
@@ -68,8 +69,7 @@ pub async fn shorten_url(
             &code
         );
         add_to_cache(&state.redis_pool, &code, &payload.url).await;
-        let shortened = shortened_url_from_code(&code, &addr);
-        return Ok((StatusCode::OK, shortened));
+        return Ok((StatusCode::OK, Json(ShortenResponse { code })));
     }
 
     for _ in 0..MAX_COLLISION_RETRIES {
@@ -80,8 +80,7 @@ pub async fn shorten_url(
             Ok(_) => {
                 info!("Short URL created with code: {}", &code);
                 add_to_cache(&state.redis_pool, &code, &payload.url).await;
-                let shortened = shortened_url_from_code(&code, &addr);
-                return Ok((StatusCode::CREATED, shortened));
+                return Ok((StatusCode::CREATED, Json(ShortenResponse { code })));
             }
             Err(sqlx::Error::Database(db_err)) if is_collision(db_err.as_ref()) => {
                 warn!("Collision - retrying with new code");
@@ -124,8 +123,4 @@ fn generate_random_base62_code(length: usize) -> String {
             BASE62[idx] as char
         })
         .collect()
-}
-
-fn shortened_url_from_code(code: &str, service_host: &str) -> String {
-    format!("{}/{}", service_host, code)
 }

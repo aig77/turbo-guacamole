@@ -56,6 +56,7 @@
             docker-compose
             postgresql
             redis
+            flyctl
           ];
 
           RUST_BACKTRACE = 1;

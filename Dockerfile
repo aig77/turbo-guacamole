@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.84-slim as builder
+FROM rust:1.93-slim as builder
 
 WORKDIR /app
 
@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy manifests

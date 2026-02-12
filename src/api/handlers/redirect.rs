@@ -13,7 +13,7 @@ use tracing::{error, info, instrument, warn};
 
 #[utoipa::path(
     get,
-    path = "/v1/{code}",
+    path = "/{code}",
     params(
         ("code" = String, Path, description = "Short URL code to redirect")
     ),

@@ -52,6 +52,7 @@
           packages = with pkgs; [
             rustToolchain
             rust-analyzer
+            cargo-watch
             pre-commit
             docker-compose
             postgresql

@@ -6,7 +6,7 @@ use axum::{
 };
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, services::ServeFile};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer, services::ServeFile};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -57,28 +57,29 @@ pub fn configure(
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .route_service("/", ServeFile::new("static/index.html"))
+        // Main routes
+        .route(
+            "/{code}",
+            get(handlers::redirect::redirect_url).layer(redirect_rate_limit),
+        )
         .route(
             "/shorten",
             post(handlers::shorten::shorten_url).layer(shorten_rate_limit),
         )
-        .route(
-            "/stats",
-            get(handlers::analytics::get_stats).layer(default_rate_limit.clone()),
-        )
-        .route("/health", get(handlers::health::health))
-        .route(
-            "/{code}/stats",
-            get(handlers::analytics::get_code_stats).layer(default_rate_limit),
-        )
-        .route(
-            "/{code}",
-            get(handlers::redirect::redirect_url).layer(redirect_rate_limit),
+        // Default rate limited routes
+        .merge(
+            Router::new()
+                .route("/health", get(handlers::health::health))
+                .route("/stats", get(handlers::analytics::get_stats))
+                .route("/{code}/stats", get(handlers::analytics::get_code_stats))
+                .layer(default_rate_limit),
         )
         .layer(
             ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(
                     middleware::tracing::tracing_middleware,
                 ))
-                .layer(CorsLayer::permissive()),
+                .layer(CorsLayer::permissive())
+                .layer(CompressionLayer::new()),
         )
 }

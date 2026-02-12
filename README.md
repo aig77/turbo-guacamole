@@ -1,4 +1,4 @@
-# Turbo Guacamole 🥑 
+# Turbo Guacamole 🥑🦀 
 
 A simple URL Shortener in Rust.
 
@@ -74,6 +74,7 @@ See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for a complete guide on deploying to p
 - [x] Clear stale URLs | _added async task to clear daily (exceeding 90 days without clicks)_
 - [x] Custom api error type
 - [x] Request ID / correlation header
+- [x] Compression
 - [x] OpenAPI spec
 - [x] Frontend
 - [x] App dockerfile

@@ -1,33 +1,20 @@
-use turbo_guacamole::{api, cache, config, db, state::AppState};
+use turbo_guacamole::{api, cache, config, db, state::AppState, utils};
 
 use std::{net::SocketAddr, sync::Arc};
-use tokio::signal;
 use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    setup_tracing();
+    utils::setup_tracing();
 
     let config = config::Config::from_env();
 
     info!(
-        "Server configuration loaded: service_host={}, service_port={}, database_url={}, stale_url_days={}, cache_url={}, redirect_rate_limit={:?}, shorten_rate_limit={:?}",
-        config.service_host,
-        config.service_port,
-        if config.database_url.len() > 15 {
-            format!("{}...", &config.database_url[..15])
-        } else {
-            config.database_url.clone()
-        },
-        config.stale_urls_days,
-        if config.cache_url.len() > 15 {
-            format!("{}...", &config.cache_url[..15])
-        } else {
-            config.cache_url.clone()
-        },
-        config.redirect_rate_limit_config,
-        config.shorten_rate_limit_config,
+        service_host = %config.service_host,
+        service_port = %config.service_port,
+        database_url = %utils::truncate(&config.database_url, 15),
+        cache_url = %utils::truncate(&config.cache_url, 15),
+        stale_url_days = %config.stale_urls_days,
     );
 
     // set up postgres connection pool
@@ -63,43 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(utils::shutdown_signal())
     .await?;
 
     Ok(())
-}
-
-fn setup_tracing() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
-            }),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
 }

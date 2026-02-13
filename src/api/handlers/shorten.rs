@@ -124,3 +124,56 @@ fn generate_random_base62_code(length: usize) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_url_format_valid_http() {
+        let url = "http://doc.rust-lang.org/book/";
+        assert!(validate_url_format(url).is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_format_valid_https() {
+        let url = "https://doc.rust-lang.org/book/";
+        assert!(validate_url_format(url).is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_format_empty() {
+        let url = "";
+        let result = validate_url_format(url);
+        assert!(matches!(result, Err(ApiError::InvalidUrl(_))));
+    }
+
+    #[test]
+    fn test_validate_url_format_invalid_url() {
+        let url = "not a url at all";
+        let result = validate_url_format(url);
+        assert!(matches!(result, Err(ApiError::InvalidUrl(_))));
+    }
+
+    #[test]
+    fn test_validate_url_format_file_scheme() {
+        let url = "file://example";
+        let result = validate_url_format(url);
+        match result {
+            Err(ApiError::UnsupportedScheme { scheme }) => assert_eq!(scheme, "file"),
+            _ => panic!("Expected UnsupportedScheme error"),
+        }
+    }
+
+    #[test]
+    fn test_generate_random_base62_code_length() {
+        let code = generate_random_base62_code(10);
+        assert_eq!(code.len(), 10);
+    }
+
+    #[test]
+    fn test_generate_random_base62_code_is_alphanumeric() {
+        let code = generate_random_base62_code(10);
+        assert!(code.chars().all(|c| c.is_ascii_alphanumeric()));
+    }
+}

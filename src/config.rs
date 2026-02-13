@@ -126,3 +126,54 @@ where
         Err(_) => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rate_limit_config_parse() {
+        let result = RateLimitConfig::parse("20:30:60", "TEST_VAR");
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert_eq!(config.requests_per_second, 20);
+        assert_eq!(config.burst_size, 30);
+        assert_eq!(config.cleanup_interval_secs, 60);
+    }
+
+    #[test]
+    fn test_rate_limit_config_empty() {
+        let result = RateLimitConfig::parse("", "TEST_VAR");
+        match result {
+            Err(ConfigError::InvalidRateLimitFormat {
+                env_var: _,
+                value: _,
+            }) => {}
+            _ => panic!("Expected InvalidRateLimitFormat error"),
+        }
+    }
+
+    #[test]
+    fn test_rate_limit_config_invalid_format() {
+        let result = RateLimitConfig::parse("20:30", "TEST_VAR");
+        match result {
+            Err(ConfigError::InvalidRateLimitFormat {
+                env_var: _,
+                value: _,
+            }) => {}
+            _ => panic!("Expected InvalidRateLimitFormat error"),
+        }
+    }
+
+    #[test]
+    fn test_rate_limit_config_invalid_parse() {
+        let result = RateLimitConfig::parse("20:30:a", "TEST_VAR");
+        match result {
+            Err(ConfigError::ParseError {
+                env_var: _,
+                source: _,
+            }) => {}
+            _ => panic!("Expected ParseError error"),
+        }
+    }
+}

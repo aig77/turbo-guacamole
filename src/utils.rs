@@ -43,3 +43,44 @@ pub async fn shutdown_signal() {
         _ = terminate => {},
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_truncate_shorter_than_max() {
+        let result = truncate("hello", 10);
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_truncate_equal_to_max() {
+        let result = truncate("hello", 5);
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_truncate_longer_than_max() {
+        let result = truncate("hello world", 5);
+        assert_eq!(result, "hello...");
+    }
+
+    #[test]
+    fn test_truncate_empty_string() {
+        let result = truncate("", 10);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_truncate_zero_max() {
+        let result = truncate("hello", 0);
+        assert_eq!(result, "...");
+    }
+
+    #[test]
+    fn test_truncate_unicode() {
+        let result = truncate("hello 世界", 7);
+        assert_eq!(result, "hello 世...");
+    }
+}

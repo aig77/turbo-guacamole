@@ -11,7 +11,7 @@ A simple URL Shortener in Rust.
 - Click analytics
 - Redis caching for faster reads
 - Automatically delete stale URLs
-- Swagger UI
+- OpenAPI spec at `/api-docs/openapi.json`
 
 ## Endpoints
 
@@ -27,33 +27,103 @@ A simple URL Shortener in Rust.
 - `GET /health` - Verifies application health by checking database connections
 
 ## Development
-This project utilizes Postgres and Redis. For local development, ensure you have docker and docker-compose installed.
+
+Dependencies (Postgres + Redis) run via Docker; the rest of the tooling comes from the nix dev shell.
+
+### Quickstart
 
 ```bash
-# Start containers
-docker-compose up -d
-
-# Stop containers:
-docker-compose down
-
-# Remove volumes and stop
-docker-compose down -v
+make dev
 ```
 
-You can also install cli tools to interact with the databases. `psql` and `redis-cli` are included in this project's nix shell.
+This starts the dependency containers, copies `.env.example` to a gitignored `.env` on first run, and launches the app. Edit `.env` if your databases aren't on the localhost defaults.
 
-_Postgres_
+### Managing dependencies
+
+```bash
+make deps-up      # Start Postgres + Redis containers
+make deps-down    # Stop them
+make deps-reset   # Stop and wipe volumes (schema re-applies on next up)
+```
+
+### Databases
+
+```bash
+make psql            # psql into the Postgres container
+make redis           # redis-cli into the Redis container
+make schema-reload   # Re-apply sql/schema.sql to a running database
+```
+
+### Checks
+
+```bash
+make check      # cargo fmt --check + clippy
+make vm-check   # Headless end-to-end test in a NixOS VM (nix flake check)
+```
+
+### Integration test VM
+
+`nix run .#vm` boots a full NixOS VM (Postgres + Redis + the packaged binary) with the UI on http://localhost:8080 — handy as a pre-deploy sanity check.
+
+`psql` and `redis-cli` are also available directly from the nix shell if you prefer not to use the containers:
+
 ```bash
 psql -h localhost -p 5432 -U postgres -d postgres
-# or
-docker exec -it postgres psql -U postgres
-```
-_Redis_
-```bash
 redis-cli -h localhost -p 6379
-# or
-docker exec -it redis redis-cli
 ```
+
+## Deploying with NixOS
+
+The flake exports a NixOS module (`nixosModules.default`) that runs turbo-guacamole as a systemd service, with optional bundled Postgres and Redis. This is the recommended way to deploy to a NixOS machine.
+
+```nix
+{
+  inputs.turbo-guacamole.url = "github:you/turbo-guacamole";
+
+  outputs = { nixpkgs, turbo-guacamole, ... }: {
+    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        turbo-guacamole.nixosModules.default
+        {
+          services.turbo-guacamole.enable = true;
+          services.turbo-guacamole.host = "0.0.0.0";
+          services.turbo-guacamole.port = 8080;
+        }
+      ];
+    };
+  };
+}
+```
+
+### Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `services.turbo-guacamole.enable` | `false` | Enable the service |
+| `services.turbo-guacamole.host` | `127.0.0.1` | Bind address |
+| `services.turbo-guacamole.port` | `8080` | HTTP port |
+| `services.turbo-guacamole.database.local` | `true` | Bundle PostgreSQL + Redis on the machine |
+| `services.turbo-guacamole.database.postgresUrl` | `""` | External PostgreSQL URL (required when `local = false`) |
+| `services.turbo-guacamole.database.redisUrl` | `""` | External Redis URL (required when `local = false`) |
+| `services.turbo-guacamole.environmentFile` | `null` | `KEY=VALUE` file for secrets, e.g. `/run/secrets/tg.env` |
+
+With `database.local = true` (the default) the module sets up Postgres, Redis, and a one-shot `turbo-guacamole-schema` service that applies `sql/schema.sql` before the app starts.
+
+To use external databases, disable local mode and point the service at them:
+
+```nix
+services.turbo-guacamole = {
+  enable = true;
+  database = {
+    local = false;
+    postgresUrl = "postgresql://tg:secret@db.internal:5432/turbo_guacamole?sslmode=require";
+    redisUrl = "redis://redis.internal:6379";
+  };
+};
+```
+
+For credentials that shouldn't live in the Nix store, pass an `environmentFile` containing `DATABASE_URL` and `CACHE_URL` (e.g. a mounted secret). When `database.local = false` you must supply connection URLs either via `database.postgresUrl`/`database.redisUrl` or via `environmentFile`.
 
 ## Deployment
 

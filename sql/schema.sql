@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS clicks (
 );
 
 -- speeds up queries that filter or join on the code field in the clicks table
-CREATE INDEX idx_clicks_code_date ON clicks(code, clicked_at);
+CREATE INDEX IF NOT EXISTS idx_clicks_code_date ON clicks(code, clicked_at);

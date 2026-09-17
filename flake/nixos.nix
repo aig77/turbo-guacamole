@@ -51,6 +51,7 @@ in {
         };
         nodes.machine = {
           imports = [nixosModule];
+          services.turbo-guacamole.enable = true;
         };
         testScript = ''
           machine.wait_for_unit("postgresql.service")

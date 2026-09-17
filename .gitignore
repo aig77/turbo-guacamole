@@ -19,4 +19,9 @@
 .pre-commit-config.yaml
 
 .env
+.envrc
+
+# NixOS QEMU Test VM
+*.qcow2
+
 

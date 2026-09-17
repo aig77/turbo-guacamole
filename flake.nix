@@ -21,12 +21,8 @@
   };
 
   outputs = {flake-parts, ...} @ inputs:
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [inputs.git-hooks-nix.flakeModule];
-
-      systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
-
-      flake.nixosModules.default = {
+    flake-parts.lib.mkFlake {inherit inputs;} ({inputs, ...}: let
+      nixosModule = {
         config,
         pkgs,
         lib,
@@ -114,6 +110,7 @@
           };
           services.redis.servers.${app} = lib.mkIf cfg.database.local {
             enable = true;
+            port = 6379;
             appendOnly = true;
             settings = {
               maxmemory = "256mb";
@@ -124,8 +121,10 @@
           systemd.services.${app} = {
             description = "Turbo Guacamole";
             wantedBy = ["multi-user.target"];
-            after = ["network.target"] ++ lib.optionals cfg.database.local ["postgresql.service" "redis-${app}.service"];
-            requires = lib.optionals cfg.database.local ["postgresql.service" "redis-${app}.service"];
+            after =
+              ["network.target"]
+              ++ lib.optionals cfg.database.local ["postgresql.service" "postgresql-setup.service" "redis-${app}.service"];
+            requires = lib.optionals cfg.database.local ["postgresql.service" "postgresql-setup.service" "redis-${app}.service"];
             serviceConfig =
               {
                 ExecStart = "${package}/bin/${app}";
@@ -149,9 +148,9 @@
 
           systemd.services."${app}-schema" = lib.mkIf cfg.database.local {
             description = "Apply the turbo-guacamole database schema";
-            after = ["postgresql.service"];
+            after = ["postgresql.service" "postgresql-setup.service"];
             wantedBy = ["${app}.service"];
-            wants = ["postgresql.service"];
+            wants = ["postgresql.service" "postgresql-setup.service"];
             before = ["${app}.service"];
             serviceConfig = {
               Type = "oneshot";
@@ -168,6 +167,38 @@
           };
         };
       };
+
+      tgTest = inputs.nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          nixosModule
+          ({modulesPath, ...}: {
+            imports = ["${modulesPath}/virtualisation/qemu-vm.nix"];
+            services.turbo-guacamole.enable = true;
+            services.turbo-guacamole.host = "0.0.0.0";
+            virtualisation.forwardPorts = [
+              {
+                from = "host";
+                proto = "tcp";
+                host.port = 8080;
+                guest.port = 8080;
+              }
+            ];
+            virtualisation.graphics = false;
+            networking.firewall.allowedTCPPorts = [ 8080 ];
+            system.stateVersion = "26.05";
+          })
+        ];
+      };
+      tgVm = tgTest.config.system.build.vm;
+    in {
+      imports = [inputs.git-hooks-nix.flakeModule];
+
+      systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
+
+      flake.nixosConfigurations.tg-test = tgTest;
+
+      flake.nixosModules.default = nixosModule;
 
       perSystem = {
         system,
@@ -201,6 +232,43 @@
           postInstall = ''
             cp -r static $out/static
           '';
+        };
+
+        apps = lib.mkIf (system == "x86_64-linux") {
+          vm = {
+            type = "app";
+            program = "${tgVm}/bin/run-nixos-vm";
+            meta.description = "Run the turbo-guacamole NixOS test VM (UI on http://localhost:8080)";
+          };
+        };
+
+        checks = lib.mkIf pkgs.stdenv.isLinux {
+          default = pkgs.testers.runNixOSTest {
+            name = "turbo-guacamole";
+            defaults = {
+              system.stateVersion = "26.05";
+            };
+            nodes.machine = {
+              imports = [nixosModule];
+            };
+            testScript = ''
+              machine.wait_for_unit("postgresql.service")
+              machine.wait_for_unit("turbo-guacamole-schema.service")
+              machine.wait_for_unit("turbo-guacamole.service")
+              machine.wait_for_open_port(8080)
+              machine.succeed("curl -sf http://127.0.0.1:8080/health")
+              code = machine.succeed(
+                  "curl -s -X POST -H 'Content-Type: application/json' "
+                  "-d '{\"url\":\"https://example.com/tg-test\"}' "
+                  "http://127.0.0.1:8080/shorten | "
+                  "sed 's/.*\"code\":\"//; s/\".*//'"
+              ).strip()
+              machine.succeed(
+                  "curl -s -D- -o /dev/null http://127.0.0.1:8080/" + code + " | grep -qiE '^HTTP/1.1 30[27]'"
+              )
+              machine.succeed("curl -sf http://127.0.0.1:8080/stats")
+            '';
+          };
         };
 
         devShells.default = pkgs.mkShell {
@@ -237,5 +305,5 @@
           };
         };
       };
-    };
+    });
 }

@@ -16,17 +16,21 @@
       nixosModule
       ({modulesPath, ...}: {
         imports = ["${modulesPath}/virtualisation/qemu-vm.nix"];
-        services.turbo-guacamole.enable = true;
-        services.turbo-guacamole.host = "0.0.0.0";
-        virtualisation.forwardPorts = [
-          {
-            from = "host";
-            proto = "tcp";
-            host.port = 8080;
-            guest.port = 8080;
-          }
-        ];
-        virtualisation.graphics = false;
+        services.turbo-guacamole = {
+          enable = true;
+          host = "0.0.0.0";
+        };
+        virtualisation = {
+          graphics = false;
+          forwardPorts = [
+            {
+              from = "host";
+              proto = "tcp";
+              host.port = 8080;
+              guest.port = 8080;
+            }
+          ];
+        };
         networking.firewall.allowedTCPPorts = [8080];
         system.stateVersion = "26.05";
       })
@@ -43,7 +47,7 @@ in {
     lib,
     ...
   }: {
-    checks = lib.mkIf pkgs.stdenv.isLinux {
+    checks = lib.mkIf (system == "x86_64-linux") {
       default = pkgs.testers.runNixOSTest {
         name = "turbo-guacamole";
         defaults = {
@@ -69,6 +73,12 @@ in {
               "curl -s -D- -o /dev/null http://127.0.0.1:8080/" + code + " | grep -qiE '^HTTP/1.1 30[27]'"
           )
           machine.succeed("curl -sf http://127.0.0.1:8080/stats")
+          machine.shutdown()
+          machine.start()
+          machine.wait_for_unit("turbo-guacamole-schema.service")
+          machine.wait_for_unit("turbo-guacamole.service")
+          machine.wait_for_open_port(8080)
+          machine.succeed("curl -sf http://127.0.0.1:8080/health")
         '';
       };
     };

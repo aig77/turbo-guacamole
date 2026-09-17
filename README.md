@@ -3,15 +3,25 @@
 A simple URL Shortener in Rust.
 
 ## Basic Features
-- Random 6-character Base62 code generation
-- Collision handling with automatic retry
-- Duplicate URL detection
-- PostgreSQL persistence
-- Request logging and tracing with request IDs
-- Click analytics
-- Redis caching for faster reads
-- Automatically delete stale URLs
-- OpenAPI spec at `/api-docs/openapi.json`
+
+**Functional**
+- Shorten URLs to 6-character Base62 codes
+- Collision retry + duplicate URL detection
+- URL validation (http/https, 2048 char limit)
+- Redirect with Redis read-through caching
+- Click analytics — global + per-code totals, daily breakdown
+- Automatic stale-URL cleanup
+- Health checks and OpenAPI spec
+- Static frontend at `/`
+
+**Non-Functional**
+- Performance — Redis caching (1h TTL), connection pooling (bb8/sqlx), cached global stats
+- Reliability — graceful shutdown, bounded collision retries, DB-first failover on cache miss
+- Scalability — stateless app; external Postgres/Redis supported (NixOS `createDatabases = false`)
+- Security — per-endpoint IP rate limiting, strict URL scheme validation
+- Observability — structured request logging with `X-Request-ID` and per-request latency
+- Deployability — Dockerfile, `nixosModules.default`, Fly.io guide
+- Testability — NixOS integration test (full boot + reboot) gated to x86_64-linux
 
 ## Endpoints
 
@@ -78,7 +88,7 @@ The flake exports a NixOS module (`nixosModules.default`) that runs turbo-guacam
 
 ```nix
 {
-  inputs.turbo-guacamole.url = "github:you/turbo-guacamole";
+  inputs.turbo-guacamole.url = "github:aig77/turbo-guacamole";
 
   outputs = { nixpkgs, turbo-guacamole, ... }: {
     nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
@@ -86,9 +96,11 @@ The flake exports a NixOS module (`nixosModules.default`) that runs turbo-guacam
       modules = [
         turbo-guacamole.nixosModules.default
         {
-          services.turbo-guacamole.enable = true;
-          services.turbo-guacamole.host = "0.0.0.0";
-          services.turbo-guacamole.port = 8080;
+          services.turbo-guacamole = {
+            enable = true;
+            host = "0.0.0.0";
+            port = 8080;
+          };
         }
       ];
     };
@@ -103,51 +115,23 @@ The flake exports a NixOS module (`nixosModules.default`) that runs turbo-guacam
 | `services.turbo-guacamole.enable` | `false` | Enable the service |
 | `services.turbo-guacamole.host` | `127.0.0.1` | Bind address |
 | `services.turbo-guacamole.port` | `8080` | HTTP port |
-| `services.turbo-guacamole.database.local` | `true` | Bundle PostgreSQL + Redis on the machine |
-| `services.turbo-guacamole.database.postgresUrl` | `""` | External PostgreSQL URL (required when `local = false`) |
-| `services.turbo-guacamole.database.redisUrl` | `""` | External Redis URL (required when `local = false`) |
-| `services.turbo-guacamole.environmentFile` | `null` | `KEY=VALUE` file for secrets, e.g. `/run/secrets/tg.env` |
+| `services.turbo-guacamole.createDatabases` | `true` | Bundle PostgreSQL + Redis on the machine |
+| `services.turbo-guacamole.environmentFile` | `null` | Optional `KEY=VALUE` file; overrides module-set values (e.g. `/run/secrets/tg.env`) |
 
-With `database.local = true` (the default) the module sets up Postgres, Redis, and a one-shot `turbo-guacamole-schema` service that applies `sql/schema.sql` before the app starts.
+With `createDatabases = true` (the default) the module sets up Postgres, Redis, and a one-shot `turbo-guacamole-schema` service that applies `sql/schema.sql` before the app starts.
 
-To use external databases, disable local mode and point the service at them:
+To use external databases, disable the bundled ones and point the service at them via an `environmentFile`:
 
 ```nix
 services.turbo-guacamole = {
   enable = true;
-  database = {
-    local = false;
-    postgresUrl = "postgresql://tg:secret@db.internal:5432/turbo_guacamole?sslmode=require";
-    redisUrl = "redis://redis.internal:6379";
-  };
+  createDatabases = false;
+  environmentFile = "/run/secrets/tg.env";
 };
 ```
 
-For credentials that shouldn't live in the Nix store, pass an `environmentFile` containing `DATABASE_URL` and `CACHE_URL` (e.g. a mounted secret). When `database.local = false` you must supply connection URLs either via `database.postgresUrl`/`database.redisUrl` or via `environmentFile`.
+The file must be readable by the `turbo-guacamole` user at service start. When `createDatabases = false` it **must** define `DATABASE_URL` and `CACHE_URL`, since the module doesn't set them itself. Values from the file always override what the module sets via `Environment=` (systemd `EnvironmentFile=` takes precedence).
 
 ## Deployment
 
 See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for a complete guide on deploying to production with Fly.io + Hetzner VPS.
-
-## TODOs:
-- [x] Postgres Migration | _sqlx + postgres_
-- [x] Collision strategy | _change to random code generation and handle collision using retries_ 
-- [x] Max collision retries | _set to 5_
-- [x] Logging | _tokio tracing_
-- [x] Modular Structure | _great example [here](https://rust-api.dev/docs/part-1/tokio-hyper-axum/#routing)_
-- [x] Analytics endpoints | _click table tracks redirects + endpoint retrieves total and daily clicks for a single code_
-- [x] Rate limit | _distinct ip rate limits on code and shorten endpoints_
-- [x] Graceful shutdown | _copied [axum example](https://github.com/tokio-rs/axum/blob/main/examples/graceful-shutdown/src/main.rs)_
-- [x] Url length limit | _2048 should be long enough_
-- [x] Health check endpoint | _checks database connection_
-- [x] Redirect caching | _redis implemented_
-- [x] Clear stale URLs | _added async task to clear daily (exceeding 90 days without clicks)_
-- [x] Custom api error type
-- [x] Request ID / correlation header
-- [x] OpenAPI spec
-- [x] Frontend
-- [x] App dockerfile
-- [x] CI Pipeline
-
-# Future Considerations
-- JWT

@@ -47,7 +47,7 @@ in {
     lib,
     ...
   }: {
-    checks = lib.mkIf (system == "x86_64-linux") {
+    checks = lib.mkIf pkgs.stdenv.isLinux {
       default = pkgs.testers.runNixOSTest {
         name = "turbo-guacamole";
         defaults = {
@@ -75,10 +75,18 @@ in {
           machine.succeed("curl -sf http://127.0.0.1:8080/stats")
           machine.shutdown()
           machine.start()
+          machine.wait_for_unit("postgresql.service")
           machine.wait_for_unit("turbo-guacamole-schema.service")
           machine.wait_for_unit("turbo-guacamole.service")
           machine.wait_for_open_port(8080)
+          machine.succeed(
+              "systemctl is-active postgresql.service turbo-guacamole-schema.service turbo-guacamole.service"
+          )
           machine.succeed("curl -sf http://127.0.0.1:8080/health")
+          machine.succeed(
+              "curl -s -D- -o /dev/null http://127.0.0.1:8080/" + code + " | grep -qiE '^HTTP/1.1 30[27]'"
+          )
+          machine.succeed("curl -sf http://127.0.0.1:8080/stats")
         '';
       };
     };

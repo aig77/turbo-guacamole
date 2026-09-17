@@ -186,14 +186,6 @@
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
-
-        # A GitHub module/archive URL is byte-unstable between requests, so it
-        # can never be a reproducible fetchurl source (we saw it return a
-        # different tarball hash for the same URL in the same session). Vendor
-        # the exact zip the crate's build.rs wants (v5.17.14) in-tree and hand it
-        # over via the file:// form of SWAGGER_UI_DOWNLOAD_URL (no curl, no
-        # network, byte-stable).
-        swaggerUiDist = ./vendor/swagger-ui-v5.17.14.zip;
       in {
         packages.default = rustPlatform.buildRustPackage {
           pname = "turbo-guacamole";
@@ -206,9 +198,6 @@
           buildInputs = [pkgs.openssl];
           release = true;
           doCheck = false;
-          preBuild = ''
-            export SWAGGER_UI_DOWNLOAD_URL=file://${swaggerUiDist}
-          '';
           postInstall = ''
             cp -r static $out/static
           '';

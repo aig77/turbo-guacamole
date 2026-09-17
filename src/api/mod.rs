@@ -1,14 +1,14 @@
 use crate::config::RateLimitConfig;
 use crate::state::AppState;
 use axum::{
-    Router,
+    Json, Router,
+    response::IntoResponse,
     routing::{get, post},
 };
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, services::ServeFile};
 use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 mod handlers;
 mod middleware;
@@ -44,6 +44,10 @@ mod middleware;
   )]
 pub struct ApiDoc;
 
+async fn openapi_json() -> impl IntoResponse {
+    Json(ApiDoc::openapi())
+}
+
 pub fn configure(
     redirect_rate_limit_config: &RateLimitConfig,
     shorten_rate_limit_config: &RateLimitConfig,
@@ -55,7 +59,7 @@ pub fn configure(
         middleware::rate_limit::setup_rate_limiter(&RateLimitConfig::default());
 
     Router::new()
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .route("/api-docs/openapi.json", get(openapi_json))
         .route_service("/", ServeFile::new("static/index.html"))
         .route(
             "/shorten",
